@@ -33,6 +33,7 @@
             position: relative;
             display: inline-block;
             margin-top: 10px;
+            padding: 0;
         }
         #uploadedImage {
             max-width: 100%;
@@ -44,7 +45,9 @@
             top: 0;
             left: 0;
             z-index: 10;
-            pointer-events: auto; /* Ensure canvas can receive clicks */
+            pointer-events: auto;
+            width: 100%;
+            height: 100%;
         }
         #statusMessage {
             font-size: 14px;
@@ -192,12 +195,12 @@
                 uploadedImage.src = e.target.result;
                 uploadedImage.onload = () => {
                     imageContainer.style.display = 'inline-block';
-                    overlayCanvas.width = uploadedImage.clientWidth;
-                    overlayCanvas.height = uploadedImage.clientHeight;
+                    overlayCanvas.width = uploadedImage.naturalWidth;
+                    overlayCanvas.height = uploadedImage.naturalHeight;
                     clearCanvas();
                     statusMessage.textContent = 'Image loaded. Click "Perform OCR" to proceed.';
                     imageDataURL = e.target.result;
-                }
+                };
             };
             reader.readAsDataURL(file);
         });
@@ -310,12 +313,11 @@
         function drawWords(data) {
             const ctx = overlayCanvas.getContext('2d');
             ctx.lineWidth = 2;
-            // Use a light blue highlight:
             ctx.strokeStyle = 'rgba(0, 150, 255, 1)';
             ctx.fillStyle = 'rgba(0, 150, 255, 0.25)';
 
-            const scaleX = uploadedImage.clientWidth / data.width;
-            const scaleY = uploadedImage.clientHeight / data.height;
+            const scaleX = uploadedImage.clientWidth / uploadedImage.naturalWidth;
+            const scaleY = uploadedImage.clientHeight / uploadedImage.naturalHeight;
 
             if (!data.words) return;
 
@@ -328,7 +330,6 @@
                 const w = (bbox.x1 - bbox.x0) * scaleX;
                 const h = (bbox.y1 - bbox.y0) * scaleY;
 
-                // Draw the highlight box
                 ctx.fillRect(x, y, w, h);
                 ctx.strokeRect(x, y, w, h);
 
