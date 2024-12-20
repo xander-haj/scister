@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>OCR Image Processor with Text Highlighting</title>
+    <title>OCR Image Processor with Clickable Text Highlights</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Tesseract.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -37,11 +37,14 @@
         #uploadedImage {
             max-width: 100%;
             border: 1px solid #ddd;
+            display: block;
         }
         #overlayCanvas {
             position: absolute;
             top: 0;
             left: 0;
+            z-index: 10;
+            pointer-events: auto; /* Ensure canvas can receive clicks */
         }
         #statusMessage {
             font-size: 14px;
@@ -104,8 +107,8 @@
     </style>
 </head>
 <body>
-    <h1>OCR Image Processor with Text Highlighting</h1>
-    <p>Upload an image and perform OCR. The recognized words will be highlighted on the image. Click on a highlighted word to assign it to one of the input fields. You can edit fields manually as well. Once done, press "Update Table" to add a row to the table. You can process multiple images, clearing and adding new rows without reloading the page. Finally, press "Save CSV" to download all collected data.</p>
+    <h1>OCR Image Processor with Clickable Text Highlights</h1>
+    <p>Upload an image and perform OCR. Recognized words will be highlighted in light blue on the image. Click on a highlighted word to assign it to one of the input fields (Item Name Short, Item Name Long, UPC, Location, Downstack, Notes). You can edit fields manually as well. Once done, press "Update Table" to add a row to the table. Process multiple images by clearing the image and fields. Finally, press "Save CSV" to download all collected data.</p>
 
     <div class="input-section">
         <label for="imageInput">Upload Image:</label>
@@ -213,14 +216,12 @@
         });
 
         overlayCanvas.addEventListener('click', (e) => {
-            // Find which box was clicked
             const rect = overlayCanvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
 
             for (let w of currentWords) {
                 if (x >= w.x && x <= w.x + w.width && y >= w.y && y <= w.y + w.height) {
-                    // User clicked on this word
                     assignWordToField(w.text);
                     break;
                 }
@@ -230,7 +231,7 @@
         clearImageButton.addEventListener('click', () => {
             resetImageDisplay();
             resetFields();
-            statusMessage.textContent = 'Cleared image and fields. You can upload a new image. Table is preserved.';
+            statusMessage.textContent = 'Cleared image and fields. Table is preserved. You can upload a new image.';
         });
 
         updateTableButton.addEventListener('click', () => {
@@ -247,9 +248,6 @@
             });
             dataTable.appendChild(row);
             alert('Row added to the table.');
-
-            // After adding the row, we might want to keep fields for reference or clear them
-            // Let's just leave them as is so user can re-edit if needed.
         });
 
         saveCsvButton.addEventListener('click', () => {
@@ -312,31 +310,28 @@
         function drawWords(data) {
             const ctx = overlayCanvas.getContext('2d');
             ctx.lineWidth = 2;
-            ctx.strokeStyle = 'red';
-            ctx.font = '14px Arial';
-            ctx.fillStyle = 'rgba(255, 0, 0, 0.25)';
+            // Use a light blue highlight:
+            ctx.strokeStyle = 'rgba(0, 150, 255, 1)';
+            ctx.fillStyle = 'rgba(0, 150, 255, 0.25)';
 
-            // Tesseract returns bounding boxes in the original image dimensions
-            // Need to scale to displayed image size
             const scaleX = uploadedImage.clientWidth / data.width;
             const scaleY = uploadedImage.clientHeight / data.height;
 
-            // data.words contain info about each word including bbox and text
             if (!data.words) return;
 
             for (let word of data.words) {
                 const { text, bbox } = word;
-                if (!text.trim()) continue; // skip empty
+                if (!text.trim()) continue;
 
                 const x = bbox.x0 * scaleX;
                 const y = bbox.y0 * scaleY;
                 const w = (bbox.x1 - bbox.x0) * scaleX;
                 const h = (bbox.y1 - bbox.y0) * scaleY;
 
-                ctx.strokeRect(x, y, w, h);
+                // Draw the highlight box
                 ctx.fillRect(x, y, w, h);
+                ctx.strokeRect(x, y, w, h);
 
-                // Store for interaction
                 currentWords.push({
                     text: text.trim(),
                     x: x, y: y, width: w, height: h
@@ -345,7 +340,6 @@
         }
 
         function assignWordToField(wordText) {
-            // Prompt the user which field they want
             const choice = prompt(
                 `Choose a field to assign this text:\n` +
                 `1) Item Name Short\n` +
@@ -363,7 +357,6 @@
                 return;
             }
 
-            // Map choice to field
             let targetField;
             switch (num) {
                 case 1: targetField = field1; break;
@@ -374,7 +367,6 @@
                 case 6: targetField = field6; break;
             }
 
-            // Set field value
             targetField.value = wordText;
         }
     </script>
