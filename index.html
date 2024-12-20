@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>OCR Image Uploader</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Tesseract.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            color: #333;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+        .input-section {
+            margin-bottom: 20px;
+        }
+        .input-section label {
+            display: block;
+            margin: 10px 0 5px 0;
+        }
+        .input-section input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 5px;
+        }
+        #ocrResult {
+            width: 100%;
+            height: 150px;
+            margin-top: 10px;
+            padding: 8px;
+            font-family: monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            background: #f9f9f9;
+            border: 1px solid #ccc;
+            resize: none;
+        }
+        #imagePreview {
+            margin-top: 10px;
+            max-width: 100%;
+            border: 1px solid #ddd;
+            padding: 5px;
+        }
+        .buttons-container {
+            margin-top: 20px;
+        }
+        .buttons-container button {
+            margin-right: 10px;
+            padding: 10px 15px;
+            cursor: pointer;
+            font-weight: bold;
+            border: none;
+            border-radius: 4px;
+        }
+        #start-ocr {
+            background-color: #2cb67d;
+            color: #fff;
+        }
+        #add-to-list {
+            background-color: #3498db;
+            color: #fff;
+        }
+        #download-csv {
+            background-color: #f39c12;
+            color: #fff;
+        }
+        #reset-form {
+            background-color: #d00000;
+            color: #fff;
+        }
+        #statusMessage {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #555;
+        }
+        #imageInput {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>OCR Image Uploader</h1>
+    <p>Upload an image to perform OCR, then fill in the fields below. Once done, click "Add to List" to store the entry. Continue uploading multiple images and when finished, click "Download CSV" to get all entries as a CSV file.</p>
+
+    <div class="input-section">
+        <label for="imageInput">Upload Image:</label>
+        <input type="file" id="imageInput" accept="image/*">
+        <img id="imagePreview" alt="No image selected">
+    </div>
+
+    <div class="input-section">
+        <button id="start-ocr">Start OCR</button>
+        <p id="statusMessage"></p>
+    </div>
+
+    <div class="input-section">
+        <label>Extracted Text:</label>
+        <textarea id="ocrResult" readonly placeholder="OCR result will appear here..."></textarea>
+    </div>
+
+    <div class="input-section">
+        <label for="field1">Item Name:</label>
+        <input type="text" id="field1" placeholder="Enter item name">
+        <label for="field2">Location:</label>
+        <input type="text" id="field2" placeholder="Enter location">
+        <label for="field3">Category:</label>
+        <input type="text" id="field3" placeholder="Enter category">
+        <label for="field4">Date:</label>
+        <input type="text" id="field4" placeholder="Enter date (e.g. 2023-01-01)">
+        <label for="field5">Notes:</label>
+        <input type="text" id="field5" placeholder="Additional notes">
+    </div>
+
+    <div class="buttons-container">
+        <button id="add-to-list">Add to List</button>
+        <button id="download-csv">Download CSV</button>
+        <button id="reset-form">Reset Form</button>
+    </div>
+
+    <script>
+        let ocrWorker = null;
+        let entries = []; // will store all rows as arrays of [itemName, location, category, date, notes, ocrText]
+
+        const imageInput = document.getElementById('imageInput');
+        const imagePreview = document.getElementById('imagePreview');
+        const startOCRButton = document.getElementById('start-ocr');
+        const ocrResult = document.getElementById('ocrResult');
+        const statusMessage = document.getElementById('statusMessage');
+
+        const field1 = document.getElementById('field1');
+        const field2 = document.getElementById('field2');
+        const field3 = document.getElementById('field3');
+        const field4 = document.getElementById('field4');
+        const field5 = document.getElementById('field5');
+
+        const addToListButton = document.getElementById('add-to-list');
+        const downloadCSVButton = document.getElementById('download-csv');
+        const resetFormButton = document.getElementById('reset-form');
+
+        imageInput.addEventListener('change', () => {
+            const file = imageInput.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    imagePreview.src = e.target.result;
+                }
+                reader.readAsDataURL(file);
+                ocrResult.value = '';
+                statusMessage.textContent = '';
+            } else {
+                imagePreview.src = '';
+                ocrResult.value = '';
+            }
+        });
+
+        startOCRButton.addEventListener('click', async () => {
+            const file = imageInput.files[0];
+            if (!file) {
+                alert('Please select an image before starting OCR.');
+                return;
+            }
+            statusMessage.textContent = 'Performing OCR... please wait.';
+            ocrResult.value = '';
+            
+            const imageData = await fileToDataURL(file);
+            const result = await runOCR(imageData);
+            ocrResult.value = result;
+            statusMessage.textContent = 'OCR complete!';
+        });
+
+        addToListButton.addEventListener('click', () => {
+            const row = [
+                field1.value.trim(),
+                field2.value.trim(),
+                field3.value.trim(),
+                field4.value.trim(),
+                field5.value.trim(),
+                ocrResult.value.trim()
+            ];
+
+            // Basic validation: if no OCR result or no image was processed
+            if (!ocrResult.value.trim()) {
+                alert('No OCR result found, please run OCR first or ensure the image is processed.');
+                return;
+            }
+
+            entries.push(row);
+            alert('Entry added to list. You can upload another image or download CSV.');
+            resetFields();
+        });
+
+        downloadCSVButton.addEventListener('click', () => {
+            if (entries.length === 0) {
+                alert('No entries to download.');
+                return;
+            }
+
+            const headers = ['Item Name', 'Location', 'Category', 'Date', 'Notes', 'OCR Text'];
+            const csvContent = [headers, ...entries].map(e => e.map(x => `"${x.replace(/"/g,'""')}"`).join(',')).join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'ocr_entries.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        resetFormButton.addEventListener('click', () => {
+            resetFields();
+            ocrResult.value = '';
+            imagePreview.src = '';
+            imageInput.value = '';
+            statusMessage.textContent = '';
+        });
+
+        async function runOCR(dataURL) {
+            const worker = await Tesseract.createWorker();
+            await worker.loadLanguage('eng');
+            await worker.initialize('eng');
+
+            const { data: { text } } = await worker.recognize(dataURL);
+            await worker.terminate();
+            return text;
+        }
+
+        function fileToDataURL(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = e => resolve(e.target.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function resetFields() {
+            field1.value = '';
+            field2.value = '';
+            field3.value = '';
+            field4.value = '';
+            field5.value = '';
+        }
+    </script>
+</body>
+</html>
