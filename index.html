@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>OCR Image Uploader</title>
+    <title>OCR Image Processor with Text Highlighting</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Tesseract.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -16,6 +16,9 @@
             font-size: 24px;
             margin-bottom: 15px;
         }
+        p {
+            margin-bottom: 15px;
+        }
         .input-section {
             margin-bottom: 20px;
         }
@@ -23,222 +26,264 @@
             display: block;
             margin: 10px 0 5px 0;
         }
-        .input-section input[type="text"] {
+        #imageInput {
+            margin-bottom: 10px;
+        }
+        #imageContainer {
+            position: relative;
+            display: inline-block;
+            margin-top: 10px;
+        }
+        #uploadedImage {
+            max-width: 100%;
+            border: 1px solid #ddd;
+        }
+        #overlayCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        #statusMessage {
+            font-size: 14px;
+            color: #555;
+            margin-top: 10px;
+        }
+        #fieldContainer {
+            margin-top: 20px;
+        }
+        #fieldContainer label {
+            font-weight: bold;
+            margin: 10px 0 5px 0;
+        }
+        #fieldContainer input[type="text"] {
             width: 100%;
             padding: 8px;
             margin-bottom: 5px;
         }
-        #ocrResult {
-            width: 100%;
-            height: 150px;
-            margin-top: 10px;
-            padding: 8px;
-            font-family: monospace;
-            font-size: 14px;
-            white-space: pre-wrap;
-            background: #f9f9f9;
-            border: 1px solid #ccc;
-            resize: none;
-        }
-        #imagePreview {
-            margin-top: 10px;
-            max-width: 100%;
-            border: 1px solid #ddd;
-            padding: 5px;
-        }
-        .buttons-container {
-            margin-top: 20px;
-        }
         .buttons-container button {
-            margin-right: 10px;
             padding: 10px 15px;
             cursor: pointer;
             font-weight: bold;
             border: none;
             border-radius: 4px;
+            margin-right: 10px;
         }
-        #start-ocr {
+        #perform-ocr {
             background-color: #2cb67d;
             color: #fff;
         }
-        #add-to-list {
+        #update-table {
             background-color: #3498db;
             color: #fff;
         }
-        #download-csv {
+        #save-csv {
             background-color: #f39c12;
             color: #fff;
         }
-        #reset-form {
+        #clear-image {
             background-color: #d00000;
             color: #fff;
         }
-        #statusMessage {
-            margin-top: 10px;
-            font-size: 14px;
-            color: #555;
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 20px;
         }
-        #imageInput {
-            margin-bottom: 10px;
+        table, th, td {
+            border: 1px solid #ccc;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            font-size: 14px;
+        }
+        th {
+            background: #f2f2f2;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
-    <h1>OCR Image Uploader</h1>
-    <p>Upload an image to perform OCR, then fill in the fields below. Once done, click "Add to List" to store the entry. Continue uploading multiple images and when finished, click "Download CSV" to get all entries as a CSV file.</p>
+    <h1>OCR Image Processor with Text Highlighting</h1>
+    <p>Upload an image and perform OCR. The recognized words will be highlighted on the image. Click on a highlighted word to assign it to one of the input fields. You can edit fields manually as well. Once done, press "Update Table" to add a row to the table. You can process multiple images, clearing and adding new rows without reloading the page. Finally, press "Save CSV" to download all collected data.</p>
 
     <div class="input-section">
         <label for="imageInput">Upload Image:</label>
         <input type="file" id="imageInput" accept="image/*">
-        <img id="imagePreview" alt="No image selected">
-    </div>
-
-    <div class="input-section">
-        <button id="start-ocr">Start OCR</button>
+        <div id="imageContainer" style="display:none;">
+            <img id="uploadedImage" alt="Uploaded Image">
+            <canvas id="overlayCanvas"></canvas>
+        </div>
         <p id="statusMessage"></p>
+        <button id="perform-ocr">Perform OCR</button>
+        <button id="clear-image">Clear Image & Fields</button>
     </div>
 
-    <div class="input-section">
-        <label>Extracted Text:</label>
-        <textarea id="ocrResult" readonly placeholder="OCR result will appear here..."></textarea>
-    </div>
-
-    <div class="input-section">
-        <label for="field1">Item Name:</label>
-        <input type="text" id="field1" placeholder="Enter item name">
-        <label for="field2">Location:</label>
-        <input type="text" id="field2" placeholder="Enter location">
-        <label for="field3">Category:</label>
-        <input type="text" id="field3" placeholder="Enter category">
-        <label for="field4">Date:</label>
-        <input type="text" id="field4" placeholder="Enter date (e.g. 2023-01-01)">
-        <label for="field5">Notes:</label>
-        <input type="text" id="field5" placeholder="Additional notes">
+    <div id="fieldContainer">
+        <label for="field1">Item Name Short:</label>
+        <input type="text" id="field1">
+        <label for="field2">Item Name Long:</label>
+        <input type="text" id="field2">
+        <label for="field3">UPC:</label>
+        <input type="text" id="field3">
+        <label for="field4">Location:</label>
+        <input type="text" id="field4">
+        <label for="field5">Downstack:</label>
+        <input type="text" id="field5">
+        <label for="field6">Notes:</label>
+        <input type="text" id="field6">
     </div>
 
     <div class="buttons-container">
-        <button id="add-to-list">Add to List</button>
-        <button id="download-csv">Download CSV</button>
-        <button id="reset-form">Reset Form</button>
+        <button id="update-table">Update Table</button>
+        <button id="save-csv">Save CSV</button>
     </div>
 
-    <script>
-        let ocrWorker = null;
-        let entries = []; // will store all rows as arrays of [itemName, location, category, date, notes, ocrText]
+    <table id="dataTable">
+        <thead>
+            <tr>
+                <th>Item Name Short</th>
+                <th>Item Name Long</th>
+                <th>UPC</th>
+                <th>Location</th>
+                <th>Downstack</th>
+                <th>Notes</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Rows will be appended here -->
+        </tbody>
+    </table>
 
+    <script>
         const imageInput = document.getElementById('imageInput');
-        const imagePreview = document.getElementById('imagePreview');
-        const startOCRButton = document.getElementById('start-ocr');
-        const ocrResult = document.getElementById('ocrResult');
+        const uploadedImage = document.getElementById('uploadedImage');
+        const imageContainer = document.getElementById('imageContainer');
+        const overlayCanvas = document.getElementById('overlayCanvas');
+        const performOcrButton = document.getElementById('perform-ocr');
+        const clearImageButton = document.getElementById('clear-image');
         const statusMessage = document.getElementById('statusMessage');
+        const dataTable = document.getElementById('dataTable').querySelector('tbody');
 
         const field1 = document.getElementById('field1');
         const field2 = document.getElementById('field2');
         const field3 = document.getElementById('field3');
         const field4 = document.getElementById('field4');
         const field5 = document.getElementById('field5');
+        const field6 = document.getElementById('field6');
 
-        const addToListButton = document.getElementById('add-to-list');
-        const downloadCSVButton = document.getElementById('download-csv');
-        const resetFormButton = document.getElementById('reset-form');
+        const updateTableButton = document.getElementById('update-table');
+        const saveCsvButton = document.getElementById('save-csv');
+
+        let currentWords = []; // Store recognized words with their bounding boxes
+        let imageDataURL = null; // For OCR
 
         imageInput.addEventListener('change', () => {
             const file = imageInput.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    imagePreview.src = e.target.result;
-                }
-                reader.readAsDataURL(file);
-                ocrResult.value = '';
-                statusMessage.textContent = '';
-            } else {
-                imagePreview.src = '';
-                ocrResult.value = '';
+            if (!file) {
+                resetImageDisplay();
+                return;
             }
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                uploadedImage.src = e.target.result;
+                uploadedImage.onload = () => {
+                    imageContainer.style.display = 'inline-block';
+                    overlayCanvas.width = uploadedImage.clientWidth;
+                    overlayCanvas.height = uploadedImage.clientHeight;
+                    clearCanvas();
+                    statusMessage.textContent = 'Image loaded. Click "Perform OCR" to proceed.';
+                    imageDataURL = e.target.result;
+                }
+            };
+            reader.readAsDataURL(file);
         });
 
-        startOCRButton.addEventListener('click', async () => {
-            const file = imageInput.files[0];
-            if (!file) {
-                alert('Please select an image before starting OCR.');
+        performOcrButton.addEventListener('click', async () => {
+            if (!imageDataURL) {
+                alert('Please select an image first.');
                 return;
             }
             statusMessage.textContent = 'Performing OCR... please wait.';
-            ocrResult.value = '';
-            
-            const imageData = await fileToDataURL(file);
-            const result = await runOCR(imageData);
-            ocrResult.value = result;
-            statusMessage.textContent = 'OCR complete!';
+            clearCanvas();
+            currentWords = [];
+            const textData = await runOCR(imageDataURL);
+            statusMessage.textContent = 'OCR complete. Click on highlighted text to assign fields.';
+            drawWords(textData);
         });
 
-        addToListButton.addEventListener('click', () => {
-            const row = [
-                field1.value.trim(),
-                field2.value.trim(),
-                field3.value.trim(),
-                field4.value.trim(),
-                field5.value.trim(),
-                ocrResult.value.trim()
-            ];
+        overlayCanvas.addEventListener('click', (e) => {
+            // Find which box was clicked
+            const rect = overlayCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
 
-            // Basic validation: if no OCR result or no image was processed
-            if (!ocrResult.value.trim()) {
-                alert('No OCR result found, please run OCR first or ensure the image is processed.');
-                return;
+            for (let w of currentWords) {
+                if (x >= w.x && x <= w.x + w.width && y >= w.y && y <= w.y + w.height) {
+                    // User clicked on this word
+                    assignWordToField(w.text);
+                    break;
+                }
             }
+        });
 
-            entries.push(row);
-            alert('Entry added to list. You can upload another image or download CSV.');
+        clearImageButton.addEventListener('click', () => {
+            resetImageDisplay();
             resetFields();
+            statusMessage.textContent = 'Cleared image and fields. You can upload a new image. Table is preserved.';
         });
 
-        downloadCSVButton.addEventListener('click', () => {
-            if (entries.length === 0) {
-                alert('No entries to download.');
+        updateTableButton.addEventListener('click', () => {
+            const row = document.createElement('tr');
+            const cols = [field1.value.trim(), field2.value.trim(), field3.value.trim(), field4.value.trim(), field5.value.trim(), field6.value.trim()];
+            if (cols.every(c => c === '')) {
+                alert('All fields are empty. Nothing to add.');
                 return;
             }
+            cols.forEach(c => {
+                const td = document.createElement('td');
+                td.textContent = c;
+                row.appendChild(td);
+            });
+            dataTable.appendChild(row);
+            alert('Row added to the table.');
 
-            const headers = ['Item Name', 'Location', 'Category', 'Date', 'Notes', 'OCR Text'];
-            const csvContent = [headers, ...entries].map(e => e.map(x => `"${x.replace(/"/g,'""')}"`).join(',')).join('\n');
+            // After adding the row, we might want to keep fields for reference or clear them
+            // Let's just leave them as is so user can re-edit if needed.
+        });
 
+        saveCsvButton.addEventListener('click', () => {
+            const rows = dataTable.querySelectorAll('tr');
+            if (rows.length === 0) {
+                alert('No data to save.');
+                return;
+            }
+            const headers = ["Item Name Short", "Item Name Long", "UPC", "Location", "Downstack", "Notes"];
+            const data = [headers];
+
+            rows.forEach(r => {
+                const cells = r.querySelectorAll('td');
+                const rowData = Array.from(cells).map(cell => `"${cell.textContent.replace(/"/g, '""')}"`);
+                data.push(rowData);
+            });
+
+            const csvContent = data.map(r => r.join(',')).join('\n');
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'ocr_entries.csv';
+            a.download = 'ocr_data.csv';
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         });
 
-        resetFormButton.addEventListener('click', () => {
-            resetFields();
-            ocrResult.value = '';
-            imagePreview.src = '';
-            imageInput.value = '';
-            statusMessage.textContent = '';
-        });
-
-        async function runOCR(dataURL) {
-            const worker = await Tesseract.createWorker();
-            await worker.loadLanguage('eng');
-            await worker.initialize('eng');
-
-            const { data: { text } } = await worker.recognize(dataURL);
-            await worker.terminate();
-            return text;
-        }
-
-        function fileToDataURL(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = e => resolve(e.target.result);
-                reader.onerror = reject;
-                reader.readAsDataURL(file);
-            });
+        function resetImageDisplay() {
+            uploadedImage.src = '';
+            imageContainer.style.display = 'none';
+            imageDataURL = null;
+            clearCanvas();
         }
 
         function resetFields() {
@@ -247,6 +292,90 @@
             field3.value = '';
             field4.value = '';
             field5.value = '';
+            field6.value = '';
+        }
+
+        function clearCanvas() {
+            const ctx = overlayCanvas.getContext('2d');
+            ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        }
+
+        async function runOCR(dataURL) {
+            const worker = await Tesseract.createWorker();
+            await worker.loadLanguage('eng');
+            await worker.initialize('eng');
+            const { data } = await worker.recognize(dataURL);
+            await worker.terminate();
+            return data;
+        }
+
+        function drawWords(data) {
+            const ctx = overlayCanvas.getContext('2d');
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = 'red';
+            ctx.font = '14px Arial';
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.25)';
+
+            // Tesseract returns bounding boxes in the original image dimensions
+            // Need to scale to displayed image size
+            const scaleX = uploadedImage.clientWidth / data.width;
+            const scaleY = uploadedImage.clientHeight / data.height;
+
+            // data.words contain info about each word including bbox and text
+            if (!data.words) return;
+
+            for (let word of data.words) {
+                const { text, bbox } = word;
+                if (!text.trim()) continue; // skip empty
+
+                const x = bbox.x0 * scaleX;
+                const y = bbox.y0 * scaleY;
+                const w = (bbox.x1 - bbox.x0) * scaleX;
+                const h = (bbox.y1 - bbox.y0) * scaleY;
+
+                ctx.strokeRect(x, y, w, h);
+                ctx.fillRect(x, y, w, h);
+
+                // Store for interaction
+                currentWords.push({
+                    text: text.trim(),
+                    x: x, y: y, width: w, height: h
+                });
+            }
+        }
+
+        function assignWordToField(wordText) {
+            // Prompt the user which field they want
+            const choice = prompt(
+                `Choose a field to assign this text:\n` +
+                `1) Item Name Short\n` +
+                `2) Item Name Long\n` +
+                `3) UPC\n` +
+                `4) Location\n` +
+                `5) Downstack\n` +
+                `6) Notes\n\n` +
+                `Enter a number 1-6:`
+            );
+            if (!choice) return; // user canceled
+            const num = parseInt(choice, 10);
+            if (isNaN(num) || num < 1 || num > 6) {
+                alert('Invalid choice.');
+                return;
+            }
+
+            // Map choice to field
+            let targetField;
+            switch (num) {
+                case 1: targetField = field1; break;
+                case 2: targetField = field2; break;
+                case 3: targetField = field3; break;
+                case 4: targetField = field4; break;
+                case 5: targetField = field5; break;
+                case 6: targetField = field6; break;
+            }
+
+            // Set field value
+            targetField.value = wordText;
         }
     </script>
 </body>
