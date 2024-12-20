@@ -315,30 +315,32 @@
             ctx.lineWidth = 2;
             ctx.strokeStyle = 'rgba(0, 150, 255, 1)';
             ctx.fillStyle = 'rgba(0, 150, 255, 0.25)';
-
-            const scaleX = uploadedImage.clientWidth / uploadedImage.naturalWidth;
-            const scaleY = uploadedImage.clientHeight / uploadedImage.naturalHeight;
-
+        
+            const scaleX = overlayCanvas.width / data.width;  // Adjust scaling factors
+            const scaleY = overlayCanvas.height / data.height;
+        
             if (!data.words) return;
-
+        
             for (let word of data.words) {
                 const { text, bbox } = word;
                 if (!text.trim()) continue;
-
+        
                 const x = bbox.x0 * scaleX;
                 const y = bbox.y0 * scaleY;
                 const w = (bbox.x1 - bbox.x0) * scaleX;
                 const h = (bbox.y1 - bbox.y0) * scaleY;
-
+        
+                // Draw the highlight box
                 ctx.fillRect(x, y, w, h);
                 ctx.strokeRect(x, y, w, h);
-
+        
                 currentWords.push({
                     text: text.trim(),
                     x: x, y: y, width: w, height: h
                 });
             }
         }
+
 
         function assignWordToField(wordText) {
             const choice = prompt(
