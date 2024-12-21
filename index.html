@@ -104,6 +104,17 @@
             font-weight: bold;
             margin-bottom: 10px;
         }
+        #undo-draw-button {
+            background-color: #f1c40f;
+            color: #fff;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-bottom: 10px;
+            display: none; /* Initially hidden */
+        }
         table {
             border-collapse: collapse;
             width: 100%;
@@ -128,9 +139,19 @@
                 width: 100%;
                 margin-bottom: 10px;
             }
-            #draw-button {
+            #draw-button, #undo-draw-button {
                 width: 100%;
             }
+        }
+
+        /* Resize Handle Styles */
+        .resize-handle {
+            width: 10px;
+            height: 10px;
+            background-color: #fff;
+            border: 1px solid #000;
+            position: absolute;
+            cursor: pointer;
         }
     </style>
 </head>
@@ -139,8 +160,9 @@
     <p>Upload an image and perform OCR. Use the "Draw" button to select specific areas for OCR. Recognized words within drawn rectangles will be highlighted in light blue on the image. Click on a highlighted block to assign the concatenated text to one of the input fields (Item Name Short, Item Name Long, UPC, Location, Downstack, Notes). You can edit fields manually as well. Once done, press "Update Table" to add a row to the table. Process multiple images by clearing the image and fields. Finally, press "Save CSV" to download all collected data.</p>
 
     <div class="input-section">
-        <!-- Added Draw Button -->
+        <!-- Added Draw and Undo Draw Buttons -->
         <button id="draw-button">Draw</button>
+        <button id="undo-draw-button">Undo Draw</button>
         <label for="imageInput">Upload Image:</label>
         <input type="file" id="imageInput" accept="image/*">
         <div id="imageContainer" style="display:none;">
@@ -198,6 +220,7 @@
         const statusMessage = document.getElementById('statusMessage');
         const dataTable = document.getElementById('dataTable').querySelector('tbody');
         const drawButton = document.getElementById('draw-button');
+        const undoDrawButton = document.getElementById('undo-draw-button');
 
         const field1 = document.getElementById('field1');
         const field2 = document.getElementById('field2');
@@ -220,6 +243,18 @@
 
         // Groups for highlighted blocks
         let wordGroups = []; // Each group has {text: '...', x, y, width, height}
+
+        // Resize Handle Constants
+        const HANDLE_SIZE = 10;
+        const HANDLE_OFFSET = HANDLE_SIZE / 2;
+
+        // Variables for resizing
+        let isResizing = false;
+        let currentResizeRectIndex = -1;
+        let currentHandle = null;
+        let resizeStartX = 0;
+        let resizeStartY = 0;
+        let originalRect = null;
 
         // Handle high-DPI displays
         function adjustCanvas() {
@@ -253,6 +288,7 @@
                     // Reset any previous drawings
                     rectangles = [];
                     wordGroups = [];
+                    undoDrawButton.style.display = 'block'; // Show Undo button
                 };
             };
             reader.readAsDataURL(file);
@@ -276,8 +312,21 @@
             }
         });
 
+        // Event Listener for Undo Draw Button
+        undoDrawButton.addEventListener('click', () => {
+            if (rectangles.length === 0) {
+                alert('No rectangles to undo.');
+                return;
+            }
+            rectangles.pop();
+            wordGroups.pop();
+            statusMessage.textContent = `${rectangles.length} rectangle(s) drawn.`;
+            redrawCanvas();
+        });
+
         // Mouse Events for Desktop Drawing
         overlayCanvas.addEventListener('mousedown', (e) => {
+            if (isResizing) return; // Prevent drawing when resizing
             if (!isDrawingMode) return;
             isDrawing = true;
             const rect = overlayCanvas.getBoundingClientRect();
@@ -287,7 +336,26 @@
         });
 
         overlayCanvas.addEventListener('mousemove', (e) => {
-            if (!isDrawingMode || !isDrawing) return;
+            if (isResizing) {
+                handleResizing(e);
+                return;
+            }
+            if (!isDrawingMode) {
+                // Change cursor based on hover over handles or rectangles
+                const rect = overlayCanvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+                const handle = getHandleAt(mouseX, mouseY);
+                if (handle) {
+                    overlayCanvas.style.cursor = handle.cursor;
+                } else if (getRectangleAt(mouseX, mouseY) !== -1) {
+                    overlayCanvas.style.cursor = 'pointer';
+                } else {
+                    overlayCanvas.style.cursor = isDrawingMode ? 'crosshair' : 'default';
+                }
+                return;
+            }
+            if (!isDrawing) return;
             const rect = overlayCanvas.getBoundingClientRect();
             const mouseX = (e.clientX - rect.left);
             const mouseY = (e.clientY - rect.top);
@@ -300,6 +368,12 @@
         });
 
         overlayCanvas.addEventListener('mouseup', (e) => {
+            if (isResizing) {
+                isResizing = false;
+                currentResizeRectIndex = -1;
+                currentHandle = null;
+                return;
+            }
             if (!isDrawingMode || !isDrawing) return;
             isDrawing = false;
             if (currentRect.width !== 0 && currentRect.height !== 0) {
@@ -314,24 +388,47 @@
 
         // Touch Events for Mobile Drawing
         overlayCanvas.addEventListener('touchstart', (e) => {
+            if (isResizing) return; // Prevent drawing when resizing
             if (!isDrawingMode) return;
             e.preventDefault(); // Prevent scrolling
             if (e.touches.length !== 1) return; // Only single touch
-            isDrawing = true;
+            const touch = e.touches[0];
             const rect = overlayCanvas.getBoundingClientRect();
-            startX = (e.touches[0].clientX - rect.left);
-            startY = (e.touches[0].clientY - rect.top);
+            const touchX = (touch.clientX - rect.left);
+            const touchY = (touch.clientY - rect.top);
+            
+            // Check if touching a handle
+            const handle = getHandleAt(touchX, touchY);
+            if (handle) {
+                isResizing = true;
+                currentResizeRectIndex = handle.rectIndex;
+                currentHandle = handle.type;
+                resizeStartX = touchX;
+                resizeStartY = touchY;
+                originalRect = { ...rectangles[currentResizeRectIndex] };
+                return;
+            }
+
+            isDrawing = true;
+            startX = touchX;
+            startY = touchY;
             currentRect = { x: startX, y: startY, width: 0, height: 0 };
         }, { passive: false });
 
         overlayCanvas.addEventListener('touchmove', (e) => {
-            if (!isDrawingMode || !isDrawing) return;
+            if (isResizing) {
+                handleResizingTouch(e);
+                return;
+            }
+            if (!isDrawingMode) return;
             e.preventDefault(); // Prevent scrolling
             if (e.touches.length !== 1) return; // Only single touch
+            const touch = e.touches[0];
             const rect = overlayCanvas.getBoundingClientRect();
-            const touchX = (e.touches[0].clientX - rect.left);
-            const touchY = (e.touches[0].clientY - rect.top);
+            const touchX = (touch.clientX - rect.left);
+            const touchY = (touch.clientY - rect.top);
 
+            if (!isDrawing) return;
             currentRect.width = touchX - startX;
             currentRect.height = touchY - startY;
 
@@ -340,6 +437,12 @@
         }, { passive: false });
 
         overlayCanvas.addEventListener('touchend', (e) => {
+            if (isResizing) {
+                isResizing = false;
+                currentResizeRectIndex = -1;
+                currentHandle = null;
+                return;
+            }
             if (!isDrawingMode || !isDrawing) return;
             isDrawing = false;
             if (currentRect.width !== 0 && currentRect.height !== 0) {
@@ -454,6 +557,7 @@
             wordGroups = [];
             isDrawingMode = false;
             drawButton.textContent = 'Draw';
+            undoDrawButton.style.display = 'none'; // Hide Undo button
         }
 
         // Function to Reset Input Fields
@@ -476,12 +580,14 @@
         function redrawCanvas() {
             clearCanvas();
             // Draw existing rectangles
-            rectangles.forEach(rect => {
+            rectangles.forEach((rect, index) => {
                 drawRectangle(rect, 'rgba(255, 0, 0, 0.3)', 'red');
+                drawHandles(rect, index);
             });
             // Draw word groups
             wordGroups.forEach(group => {
                 drawRectangle(group, 'rgba(0, 150, 255, 0.25)', 'rgba(0, 150, 255, 1)');
+                // Optionally, draw handles for word groups if you want them to be resizable
             });
             // Draw current rectangle if any
             if (currentRect) {
@@ -497,6 +603,210 @@
             ctx.lineWidth = 2;
             ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
             ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+        }
+
+        // Function to Draw Resize Handles
+        function drawHandles(rect, rectIndex) {
+            const handles = getHandles(rect);
+            const ctx = overlayCanvas.getContext('2d');
+            handles.forEach(handle => {
+                ctx.fillStyle = '#fff';
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 1;
+                ctx.fillRect(handle.x - HANDLE_OFFSET, handle.y - HANDLE_OFFSET, HANDLE_SIZE, HANDLE_SIZE);
+                ctx.strokeRect(handle.x - HANDLE_OFFSET, handle.y - HANDLE_OFFSET, HANDLE_SIZE, HANDLE_SIZE);
+            });
+        }
+
+        // Function to Get Handles Positions
+        function getHandles(rect) {
+            return [
+                { x: rect.x, y: rect.y, type: 'nw' }, // North-West
+                { x: rect.x + rect.width / 2, y: rect.y, type: 'n' }, // North
+                { x: rect.x + rect.width, y: rect.y, type: 'ne' }, // North-East
+                { x: rect.x + rect.width, y: rect.y + rect.height / 2, type: 'e' }, // East
+                { x: rect.x + rect.width, y: rect.y + rect.height, type: 'se' }, // South-East
+                { x: rect.x + rect.width / 2, y: rect.y + rect.height, type: 's' }, // South
+                { x: rect.x, y: rect.y + rect.height, type: 'sw' }, // South-West
+                { x: rect.x, y: rect.y + rect.height / 2, type: 'w' } // West
+            ];
+        }
+
+        // Function to Get Handle at a Position
+        function getHandleAt(x, y) {
+            for (let i = 0; i < rectangles.length; i++) {
+                const rect = rectangles[i];
+                const handles = getHandles(rect);
+                for (let handle of handles) {
+                    if (
+                        x >= (handle.x - HANDLE_OFFSET) &&
+                        x <= (handle.x + HANDLE_OFFSET) &&
+                        y >= (handle.y - HANDLE_OFFSET) &&
+                        y <= (handle.y + HANDLE_OFFSET)
+                    ) {
+                        return { rectIndex: i, type: handle.type };
+                    }
+                }
+            }
+            return null;
+        }
+
+        // Function to Get Rectangle at a Position
+        function getRectangleAt(x, y) {
+            for (let i = 0; i < wordGroups.length; i++) {
+                const group = wordGroups[i];
+                if (
+                    x >= group.x &&
+                    x <= group.x + group.width &&
+                    y >= group.y &&
+                    y <= group.y + group.height
+                ) {
+                    return i;
+                }
+            }
+            for (let i = 0; i < rectangles.length; i++) {
+                const rect = rectangles[i];
+                if (
+                    x >= rect.x &&
+                    x <= rect.x + rect.width &&
+                    y >= rect.y &&
+                    y <= rect.y + rect.height
+                ) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        // Function to Handle Resizing with Mouse
+        function handleResizing(e) {
+            const rect = overlayCanvas.getBoundingClientRect();
+            const mouseX = (e.clientX - rect.left);
+            const mouseY = (e.clientY - rect.top);
+
+            const deltaX = mouseX - resizeStartX;
+            const deltaY = mouseY - resizeStartY;
+
+            let newRect = { ...originalRect };
+
+            switch (currentHandle) {
+                case 'nw':
+                    newRect.x = originalRect.x + deltaX;
+                    newRect.y = originalRect.y + deltaY;
+                    newRect.width = originalRect.width - deltaX;
+                    newRect.height = originalRect.height - deltaY;
+                    break;
+                case 'n':
+                    newRect.y = originalRect.y + deltaY;
+                    newRect.height = originalRect.height - deltaY;
+                    break;
+                case 'ne':
+                    newRect.y = originalRect.y + deltaY;
+                    newRect.width = originalRect.width + deltaX;
+                    newRect.height = originalRect.height - deltaY;
+                    break;
+                case 'e':
+                    newRect.width = originalRect.width + deltaX;
+                    break;
+                case 'se':
+                    newRect.width = originalRect.width + deltaX;
+                    newRect.height = originalRect.height + deltaY;
+                    break;
+                case 's':
+                    newRect.height = originalRect.height + deltaY;
+                    break;
+                case 'sw':
+                    newRect.x = originalRect.x + deltaX;
+                    newRect.width = originalRect.width - deltaX;
+                    newRect.height = originalRect.height + deltaY;
+                    break;
+                case 'w':
+                    newRect.x = originalRect.x + deltaX;
+                    newRect.width = originalRect.width - deltaX;
+                    break;
+            }
+
+            // Normalize the rectangle to prevent negative widths/heights
+            newRect = normalizeRect(newRect);
+
+            // Update the rectangle
+            rectangles[currentResizeRectIndex] = newRect;
+
+            // Update wordGroups if any
+            if (wordGroups.length > currentResizeRectIndex) {
+                wordGroups[currentResizeRectIndex].x = newRect.x;
+                wordGroups[currentResizeRectIndex].y = newRect.y;
+                wordGroups[currentResizeRectIndex].width = newRect.width;
+                wordGroups[currentResizeRectIndex].height = newRect.height;
+            }
+
+            redrawCanvas();
+        }
+
+        // Function to Handle Resizing with Touch
+        function handleResizingTouch(e) {
+            const touch = e.touches[0];
+            const rect = overlayCanvas.getBoundingClientRect();
+            const touchX = (touch.clientX - rect.left);
+            const touchY = (touch.clientY - rect.top);
+
+            const deltaX = touchX - resizeStartX;
+            const deltaY = touchY - resizeStartY;
+
+            let newRect = { ...originalRect };
+
+            switch (currentHandle) {
+                case 'nw':
+                    newRect.x = originalRect.x + deltaX;
+                    newRect.y = originalRect.y + deltaY;
+                    newRect.width = originalRect.width - deltaX;
+                    newRect.height = originalRect.height - deltaY;
+                    break;
+                case 'n':
+                    newRect.y = originalRect.y + deltaY;
+                    newRect.height = originalRect.height - deltaY;
+                    break;
+                case 'ne':
+                    newRect.y = originalRect.y + deltaY;
+                    newRect.width = originalRect.width + deltaX;
+                    newRect.height = originalRect.height - deltaY;
+                    break;
+                case 'e':
+                    newRect.width = originalRect.width + deltaX;
+                    break;
+                case 'se':
+                    newRect.width = originalRect.width + deltaX;
+                    newRect.height = originalRect.height + deltaY;
+                    break;
+                case 's':
+                    newRect.height = originalRect.height + deltaY;
+                    break;
+                case 'sw':
+                    newRect.x = originalRect.x + deltaX;
+                    newRect.width = originalRect.width - deltaX;
+                    newRect.height = originalRect.height + deltaY;
+                    break;
+                case 'w':
+                    newRect.x = originalRect.x + deltaX;
+                    newRect.width = originalRect.width - deltaX;
+                    break;
+            }
+
+            // Normalize the rectangle to prevent negative widths/heights
+            newRect = normalizeRect(newRect);
+
+            // Update the rectangle
+            rectangles[currentResizeRectIndex] = newRect;
+
+            // Update wordGroups if any
+            if (wordGroups.length > currentResizeRectIndex) {
+                wordGroups[currentResizeRectIndex].x = newRect.x;
+                wordGroups[currentResizeRectIndex].y = newRect.y;
+                wordGroups[currentResizeRectIndex].width = newRect.width;
+                wordGroups[currentResizeRectIndex].height = newRect.height;
+            }
+
+            redrawCanvas();
         }
 
         // Function to Normalize Rectangle (handles negative width/height)
@@ -530,12 +840,14 @@
             if (!data.words) return;
 
             // For each rectangle, find words within it
-            rectangles.forEach(rect => {
+            rectangles.forEach((rect, index) => {
                 const wordsInRect = data.words.filter(word => {
-                    const wordX = word.bbox.x0 * (uploadedImage.clientWidth / uploadedImage.naturalWidth);
-                    const wordY = word.bbox.y0 * (uploadedImage.clientHeight / uploadedImage.naturalHeight);
-                    const wordW = (word.bbox.x1 - word.bbox.x0) * (uploadedImage.clientWidth / uploadedImage.naturalWidth);
-                    const wordH = (word.bbox.y1 - word.bbox.y0) * (uploadedImage.clientHeight / uploadedImage.naturalHeight);
+                    const scaleX = uploadedImage.clientWidth / uploadedImage.naturalWidth;
+                    const scaleY = uploadedImage.clientHeight / uploadedImage.naturalHeight;
+                    const wordX = word.bbox.x0 * scaleX;
+                    const wordY = word.bbox.y0 * scaleY;
+                    const wordW = (word.bbox.x1 - word.bbox.x0) * scaleX;
+                    const wordH = (word.bbox.y1 - word.bbox.y0) * scaleY;
                     return (
                         wordX >= rect.x &&
                         wordY >= rect.y &&
@@ -560,17 +872,25 @@
                     const x1 = Math.max(...wordsInRect.map(w => w.bbox.x1));
                     const y1 = Math.max(...wordsInRect.map(w => w.bbox.y1));
 
+                    const scaleX = uploadedImage.clientWidth / uploadedImage.naturalWidth;
+                    const scaleY = uploadedImage.clientHeight / uploadedImage.naturalHeight;
+
                     const groupRect = {
-                        x: x0 * (uploadedImage.clientWidth / uploadedImage.naturalWidth),
-                        y: y0 * (uploadedImage.clientHeight / uploadedImage.naturalHeight),
-                        width: (x1 - x0) * (uploadedImage.clientWidth / uploadedImage.naturalWidth),
-                        height: (y1 - y0) * (uploadedImage.clientHeight / uploadedImage.naturalHeight),
+                        x: x0 * scaleX,
+                        y: y0 * scaleY,
+                        width: (x1 - x0) * scaleX,
+                        height: (y1 - y0) * scaleY,
                         text: concatenatedText
                     };
 
                     wordGroups.push(groupRect);
+                } else {
+                    wordGroups.push(null); // Placeholder to maintain index
                 }
             });
+
+            // Remove null entries
+            wordGroups = wordGroups.filter(group => group !== null);
         }
 
         // Function to Draw Word Groups
@@ -610,7 +930,318 @@
             targetField.value = text;
         }
 
-        // Prevent scrolling when touching the canvas in draw mode
+        // Function to Get Rectangle at a Position
+        function getRectangleAt(x, y) {
+            for (let i = 0; i < wordGroups.length; i++) {
+                const group = wordGroups[i];
+                if (
+                    x >= group.x &&
+                    x <= group.x + group.width &&
+                    y >= group.y &&
+                    y <= group.y + group.height
+                ) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        // Function to Handle Resizing
+        function handleResizing(e) {
+            const rect = overlayCanvas.getBoundingClientRect();
+            const mouseX = (e.clientX - rect.left);
+            const mouseY = (e.clientY - rect.top);
+
+            const deltaX = mouseX - resizeStartX;
+            const deltaY = mouseY - resizeStartY;
+
+            let newRect = { ...originalRect };
+
+            switch (currentHandle) {
+                case 'nw':
+                    newRect.x = originalRect.x + deltaX;
+                    newRect.y = originalRect.y + deltaY;
+                    newRect.width = originalRect.width - deltaX;
+                    newRect.height = originalRect.height - deltaY;
+                    break;
+                case 'n':
+                    newRect.y = originalRect.y + deltaY;
+                    newRect.height = originalRect.height - deltaY;
+                    break;
+                case 'ne':
+                    newRect.y = originalRect.y + deltaY;
+                    newRect.width = originalRect.width + deltaX;
+                    newRect.height = originalRect.height - deltaY;
+                    break;
+                case 'e':
+                    newRect.width = originalRect.width + deltaX;
+                    break;
+                case 'se':
+                    newRect.width = originalRect.width + deltaX;
+                    newRect.height = originalRect.height + deltaY;
+                    break;
+                case 's':
+                    newRect.height = originalRect.height + deltaY;
+                    break;
+                case 'sw':
+                    newRect.x = originalRect.x + deltaX;
+                    newRect.width = originalRect.width - deltaX;
+                    newRect.height = originalRect.height + deltaY;
+                    break;
+                case 'w':
+                    newRect.x = originalRect.x + deltaX;
+                    newRect.width = originalRect.width - deltaX;
+                    break;
+            }
+
+            // Normalize the rectangle to prevent negative widths/heights
+            newRect = normalizeRect(newRect);
+
+            // Update the rectangle
+            rectangles[currentResizeRectIndex] = newRect;
+
+            // Update wordGroups if any
+            if (wordGroups.length > currentResizeRectIndex) {
+                wordGroups[currentResizeRectIndex].x = newRect.x;
+                wordGroups[currentResizeRectIndex].y = newRect.y;
+                wordGroups[currentResizeRectIndex].width = newRect.width;
+                wordGroups[currentResizeRectIndex].height = newRect.height;
+            }
+
+            redrawCanvas();
+        }
+
+        // Function to Handle Resizing with Touch
+        function handleResizingTouch(e) {
+            const touch = e.touches[0];
+            const rect = overlayCanvas.getBoundingClientRect();
+            const touchX = (touch.clientX - rect.left);
+            const touchY = (touch.clientY - rect.top);
+
+            const deltaX = touchX - resizeStartX;
+            const deltaY = touchY - resizeStartY;
+
+            let newRect = { ...originalRect };
+
+            switch (currentHandle) {
+                case 'nw':
+                    newRect.x = originalRect.x + deltaX;
+                    newRect.y = originalRect.y + deltaY;
+                    newRect.width = originalRect.width - deltaX;
+                    newRect.height = originalRect.height - deltaY;
+                    break;
+                case 'n':
+                    newRect.y = originalRect.y + deltaY;
+                    newRect.height = originalRect.height - deltaY;
+                    break;
+                case 'ne':
+                    newRect.y = originalRect.y + deltaY;
+                    newRect.width = originalRect.width + deltaX;
+                    newRect.height = originalRect.height - deltaY;
+                    break;
+                case 'e':
+                    newRect.width = originalRect.width + deltaX;
+                    break;
+                case 'se':
+                    newRect.width = originalRect.width + deltaX;
+                    newRect.height = originalRect.height + deltaY;
+                    break;
+                case 's':
+                    newRect.height = originalRect.height + deltaY;
+                    break;
+                case 'sw':
+                    newRect.x = originalRect.x + deltaX;
+                    newRect.width = originalRect.width - deltaX;
+                    newRect.height = originalRect.height + deltaY;
+                    break;
+                case 'w':
+                    newRect.x = originalRect.x + deltaX;
+                    newRect.width = originalRect.width - deltaX;
+                    break;
+            }
+
+            // Normalize the rectangle to prevent negative widths/heights
+            newRect = normalizeRect(newRect);
+
+            // Update the rectangle
+            rectangles[currentResizeRectIndex] = newRect;
+
+            // Update wordGroups if any
+            if (wordGroups.length > currentResizeRectIndex) {
+                wordGroups[currentResizeRectIndex].x = newRect.x;
+                wordGroups[currentResizeRectIndex].y = newRect.y;
+                wordGroups[currentResizeRectIndex].width = newRect.width;
+                wordGroups[currentResizeRectIndex].height = newRect.height;
+            }
+
+            redrawCanvas();
+        }
+
+        // Function to Handle Resizing Start
+        function startResizing(e, handle) {
+            isResizing = true;
+            currentResizeRectIndex = handle.rectIndex;
+            currentHandle = handle.type;
+            resizeStartX = e.clientX ? (e.clientX - overlayCanvas.getBoundingClientRect().left) : (e.touches[0].clientX - overlayCanvas.getBoundingClientRect().left);
+            resizeStartY = e.clientY ? (e.clientY - overlayCanvas.getBoundingClientRect().top) : (e.touches[0].clientY - overlayCanvas.getBoundingClientRect().top);
+            originalRect = { ...rectangles[currentResizeRectIndex] };
+        }
+
+        // Modify touchstart and mousedown to handle resizing
+        overlayCanvas.addEventListener('mousedown', (e) => {
+            if (isDrawingMode && isResizing) return;
+            if (!isDrawingMode) return;
+
+            const rect = overlayCanvas.getBoundingClientRect();
+            const mouseX = (e.clientX - rect.left);
+            const mouseY = (e.clientY - rect.top);
+
+            const handle = getHandleAt(mouseX, mouseY);
+            if (handle) {
+                startResizing(e, handle);
+            }
+        });
+
+        overlayCanvas.addEventListener('touchstart', (e) => {
+            if (!isDrawingMode) return;
+            e.preventDefault(); // Prevent scrolling
+            if (e.touches.length !== 1) return; // Only single touch
+
+            const touch = e.touches[0];
+            const rect = overlayCanvas.getBoundingClientRect();
+            const touchX = (touch.clientX - rect.left);
+            const touchY = (touch.clientY - rect.top);
+
+            const handle = getHandleAt(touchX, touchY);
+            if (handle) {
+                startResizing(e, handle);
+            }
+        }, { passive: false });
+
+        // Function to Handle Resizing Movement
+        function handleResizingMove(e) {
+            if (!isResizing) return;
+            handleResizing(e);
+        }
+
+        // Function to Handle Resizing Movement for Touch
+        function handleResizingMoveTouch(e) {
+            if (!isResizing) return;
+            handleResizingTouch(e);
+        }
+
+        // Attach move event listeners for resizing
+        overlayCanvas.addEventListener('mousemove', handleResizingMove);
+        overlayCanvas.addEventListener('touchmove', handleResizingMoveTouch, { passive: false });
+
+        // Function to Run OCR using Tesseract.js
+        async function runOCR(dataURL) {
+            const worker = await Tesseract.createWorker({
+                logger: m => console.log(m)
+            });
+            await worker.loadLanguage('eng');
+            await worker.initialize('eng');
+            const { data } = await worker.recognize(dataURL);
+            await worker.terminate();
+            return data;
+        }
+
+        // Function to Process OCR Data and Group Words within Rectangles
+        function processOCRData(data) {
+            if (!data.words) return;
+
+            // For each rectangle, find words within it
+            rectangles.forEach((rect, index) => {
+                const wordsInRect = data.words.filter(word => {
+                    const scaleX = uploadedImage.clientWidth / uploadedImage.naturalWidth;
+                    const scaleY = uploadedImage.clientHeight / uploadedImage.naturalHeight;
+                    const wordX = word.bbox.x0 * scaleX;
+                    const wordY = word.bbox.y0 * scaleY;
+                    const wordW = (word.bbox.x1 - word.bbox.x0) * scaleX;
+                    const wordH = (word.bbox.y1 - word.bbox.y0) * scaleY;
+                    return (
+                        wordX >= rect.x &&
+                        wordY >= rect.y &&
+                        (wordX + wordW) <= (rect.x + rect.width) &&
+                        (wordY + wordH) <= (rect.y + rect.height)
+                    );
+                });
+
+                if (wordsInRect.length > 0) {
+                    // Concatenate words to form a single string
+                    const sortedWords = wordsInRect.sort((a, b) => {
+                        if (a.bbox.y0 === b.bbox.y0) {
+                            return a.bbox.x0 - b.bbox.x0;
+                        }
+                        return a.bbox.y0 - b.bbox.y0;
+                    });
+                    const concatenatedText = sortedWords.map(w => w.text).join(' ');
+
+                    // Calculate the bounding box that encompasses all words
+                    const x0 = Math.min(...wordsInRect.map(w => w.bbox.x0));
+                    const y0 = Math.min(...wordsInRect.map(w => w.bbox.y0));
+                    const x1 = Math.max(...wordsInRect.map(w => w.bbox.x1));
+                    const y1 = Math.max(...wordsInRect.map(w => w.bbox.y1));
+
+                    const scaleX = uploadedImage.clientWidth / uploadedImage.naturalWidth;
+                    const scaleY = uploadedImage.clientHeight / uploadedImage.naturalHeight;
+
+                    const groupRect = {
+                        x: x0 * scaleX,
+                        y: y0 * scaleY,
+                        width: (x1 - x0) * scaleX,
+                        height: (y1 - y0) * scaleY,
+                        text: concatenatedText
+                    };
+
+                    wordGroups.push(groupRect);
+                } else {
+                    wordGroups.push(null); // Placeholder to maintain index
+                }
+            });
+
+            // Remove null entries
+            wordGroups = wordGroups.filter(group => group !== null);
+        }
+
+        // Function to Draw Word Groups
+        function drawWordGroups() {
+            redrawCanvas();
+        }
+
+        // Function to Assign Group Text to a Field
+        function assignGroupToField(text) {
+            const choice = prompt(
+                `Choose a field to assign this text:\n` +
+                `1) Item Name Short\n` +
+                `2) Item Name Long\n` +
+                `3) UPC\n` +
+                `4) Location\n` +
+                `5) Downstack\n` +
+                `6) Notes\n\n` +
+                `Enter a number 1-6:`
+            );
+            if (!choice) return; // User canceled
+            const num = parseInt(choice, 10);
+            if (isNaN(num) || num < 1 || num > 6) {
+                alert('Invalid choice.');
+                return;
+            }
+
+            let targetField;
+            switch (num) {
+                case 1: targetField = field1; break;
+                case 2: targetField = field2; break;
+                case 3: targetField = field3; break;
+                case 4: targetField = field4; break;
+                case 5: targetField = field5; break;
+                case 6: targetField = field6; break;
+            }
+
+            targetField.value = text;
+        }
+
+        // Function to Prevent Scrolling When Touching the Canvas in Draw Mode
         document.body.addEventListener('touchstart', function(e) {
             if (isDrawingMode && e.target === overlayCanvas) {
                 e.preventDefault();
