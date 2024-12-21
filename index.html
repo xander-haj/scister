@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>OCR Image Processor with Clickable Text Highlights</title>
+    <title>OCR Image Processor with Clickable Text Highlights and Rectangle Selection</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Tesseract.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -107,11 +107,17 @@
             background: #f2f2f2;
             font-weight: bold;
         }
+        /* Styles for rectangle drawing */
+        .rectangle {
+            border: 2px dashed #ff0000;
+            position: absolute;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
-    <h1>OCR Image Processor with Clickable Text Highlights</h1>
-    <p>Upload an image and perform OCR. Recognized words will be highlighted in light blue on the image. Click on a highlighted word to assign it to one of the input fields (Item Name Short, Item Name Long, UPC, Location, Downstack, Notes). You can edit fields manually as well. Once done, press "Update Table" to add a row to the table. Process multiple images by clearing the image and fields. Finally, press "Save CSV" to download all collected data.</p>
+    <h1>OCR Image Processor with Clickable Text Highlights and Rectangle Selection</h1>
+    <p>Upload an image and draw rectangles around the text areas you want to perform OCR on. Only the text within these rectangles will be processed and highlighted. Click on a highlighted block to assign its text to one of the input fields. You can edit fields manually as well. Once done, press "Update Table" to add a row to the table. Process multiple images by clearing the image and fields. Finally, press "Save CSV" to download all collected data.</p>
 
     <div class="input-section">
         <label for="imageInput">Upload Image:</label>
@@ -119,6 +125,8 @@
         <div id="imageContainer" style="display:none;">
             <img id="uploadedImage" alt="Uploaded Image">
             <canvas id="overlayCanvas"></canvas>
+            <!-- Container for drawing rectangles -->
+            <div id="rectContainer"></div>
         </div>
         <p id="statusMessage"></p>
         <button id="perform-ocr">Perform OCR</button>
@@ -166,6 +174,7 @@
         const uploadedImage = document.getElementById('uploadedImage');
         const imageContainer = document.getElementById('imageContainer');
         const overlayCanvas = document.getElementById('overlayCanvas');
+        const rectContainer = document.getElementById('rectContainer');
         const performOcrButton = document.getElementById('perform-ocr');
         const clearImageButton = document.getElementById('clear-image');
         const statusMessage = document.getElementById('statusMessage');
@@ -181,8 +190,18 @@
         const updateTableButton = document.getElementById('update-table');
         const saveCsvButton = document.getElementById('save-csv');
 
-        let currentWords = []; // Store recognized words with their bounding boxes
+        let currentHighlights = []; // Store highlighted blocks
         let imageDataURL = null; // For OCR
+
+        // Rectangle drawing variables
+        let isDrawing = false;
+        let startX = 0;
+        let startY = 0;
+        let currentRect = null;
+
+        // Scaling factors
+        let scaleX = 1;
+        let scaleY = 1;
 
         imageInput.addEventListener('change', () => {
             const file = imageInput.files[0];
@@ -200,8 +219,13 @@
                     overlayCanvas.width = uploadedImage.clientWidth;
                     overlayCanvas.height = uploadedImage.clientHeight;
 
+                    // Set the rectContainer size
+                    rectContainer.style.width = `${uploadedImage.clientWidth}px`;
+                    rectContainer.style.height = `${uploadedImage.clientHeight}px`;
+
                     clearCanvas();
-                    statusMessage.textContent = 'Image loaded. Click "Perform OCR" to proceed.';
+                    clearRectangles();
+                    statusMessage.textContent = 'Image loaded. Draw rectangles around text areas and then click "Perform OCR".';
                     imageDataURL = e.target.result;
                 };
             };
@@ -213,25 +237,36 @@
                 alert('Please select an image first.');
                 return;
             }
+            if (currentHighlights.length === 0) {
+                alert('Please draw at least one rectangle around the text areas you want to process.');
+                return;
+            }
             statusMessage.textContent = 'Performing OCR... please wait.';
             clearCanvas();
-            currentWords = [];
-            const textData = await runOCR(imageDataURL);
-            statusMessage.textContent = 'OCR complete. Click on highlighted text to assign fields.';
-            drawWords(textData);
-        });
 
-        overlayCanvas.addEventListener('click', (e) => {
-            const rect = overlayCanvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+            // Clear previous highlights
+            currentHighlights = [];
 
-            for (let w of currentWords) {
-                if (x >= w.x && x <= w.x + w.width && y >= w.y && y <= w.y + w.height) {
-                    assignWordToField(w.text);
-                    break;
+            // Perform OCR on each rectangle
+            for (let rect of rectangles) {
+                const { x, y, width, height } = rect;
+
+                // Extract the region from the image
+                const regionDataURL = await getImageRegion(imageDataURL, x, y, width, height);
+                
+                // Perform OCR on the region
+                const ocrResult = await runOCR(regionDataURL);
+
+                // Concatenate all words into a single string
+                const text = ocrResult.data.text.trim().replace(/\s+/g, ' ');
+
+                if (text) {
+                    // Draw highlight
+                    drawHighlight(x, y, width, height, text);
                 }
             }
+
+            statusMessage.textContent = 'OCR complete. Click on highlighted areas to assign text to fields.';
         });
 
         clearImageButton.addEventListener('click', () => {
@@ -283,13 +318,92 @@
             URL.revokeObjectURL(url);
         });
 
+        // Rectangle Drawing Functionality
+        let rectangles = []; // Store drawn rectangles
+
+        overlayCanvas.addEventListener('mousedown', (e) => {
+            isDrawing = true;
+            const rect = overlayCanvas.getBoundingClientRect();
+            startX = e.clientX - rect.left;
+            startY = e.clientY - rect.top;
+            currentRect = { x: startX, y: startY, width: 0, height: 0 };
+        });
+
+        overlayCanvas.addEventListener('mousemove', (e) => {
+            if (!isDrawing) return;
+            const rect = overlayCanvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            currentRect.width = mouseX - startX;
+            currentRect.height = mouseY - startY;
+            drawCanvas();
+            drawCurrentRectangle();
+        });
+
+        overlayCanvas.addEventListener('mouseup', (e) => {
+            if (!isDrawing) return;
+            isDrawing = false;
+            // Normalize rectangle dimensions
+            const normRect = normalizeRectangle(currentRect);
+            rectangles.push(normRect);
+            drawCanvas();
+            drawAllRectangles();
+            addRectangleDiv(normRect);
+            currentRect = null;
+        });
+
+        // Function to normalize rectangle dimensions
+        function normalizeRectangle(rect) {
+            let { x, y, width, height } = rect;
+            if (width < 0) {
+                x += width;
+                width = Math.abs(width);
+            }
+            if (height < 0) {
+                y += height;
+                height = Math.abs(height);
+            }
+            return { x, y, width, height };
+        }
+
+        // Function to draw all rectangles on the canvas
+        function drawAllRectangles() {
+            const ctx = overlayCanvas.getContext('2d');
+            ctx.strokeStyle = 'rgba(255, 0, 0, 1)';
+            ctx.lineWidth = 2;
+            rectangles.forEach(rect => {
+                ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+            });
+        }
+
+        // Function to draw the current rectangle being drawn
+        function drawCurrentRectangle() {
+            if (!currentRect) return;
+            const ctx = overlayCanvas.getContext('2d');
+            ctx.strokeStyle = 'rgba(0, 255, 0, 1)';
+            ctx.lineWidth = 2;
+            const { x, y, width, height } = currentRect;
+            ctx.strokeRect(x, y, width, height);
+        }
+
+        // Function to clear the canvas
+        function clearCanvas() {
+            const ctx = overlayCanvas.getContext('2d');
+            ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        }
+
+        // Function to reset the image display and clear all data
         function resetImageDisplay() {
             uploadedImage.src = '';
             imageContainer.style.display = 'none';
             imageDataURL = null;
             clearCanvas();
+            clearRectangles();
+            rectangles = [];
+            currentHighlights = [];
         }
 
+        // Function to reset input fields
         function resetFields() {
             field1.value = '';
             field2.value = '';
@@ -299,13 +413,52 @@
             field6.value = '';
         }
 
-        function clearCanvas() {
-            const ctx = overlayCanvas.getContext('2d');
-            ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        // Function to clear all rectangle overlays
+        function clearRectangles() {
+            rectContainer.innerHTML = '';
+            rectangles = [];
         }
 
+        // Function to add a visual rectangle overlay (optional for better UX)
+        function addRectangleDiv(rect) {
+            const div = document.createElement('div');
+            div.classList.add('rectangle');
+            div.style.left = `${rect.x}px`;
+            div.style.top = `${rect.y}px`;
+            div.style.width = `${rect.width}px`;
+            div.style.height = `${rect.height}px`;
+            rectContainer.appendChild(div);
+        }
+
+        // Function to extract a region from the image and return as Data URL
+        async function getImageRegion(dataURL, x, y, width, height) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.src = dataURL;
+                img.onload = () => {
+                    // Create a temporary canvas to extract the region
+                    const tempCanvas = document.createElement('canvas');
+                    const tempCtx = tempCanvas.getContext('2d');
+
+                    // Set the canvas size to the region size
+                    tempCanvas.width = width;
+                    tempCanvas.height = height;
+
+                    // Draw the image region onto the temporary canvas
+                    tempCtx.drawImage(img, x, y, width, height, 0, 0, width, height);
+
+                    // Get the Data URL of the region
+                    const regionDataURL = tempCanvas.toDataURL();
+                    resolve(regionDataURL);
+                };
+            });
+        }
+
+        // Function to perform OCR using Tesseract.js
         async function runOCR(dataURL) {
-            const worker = await Tesseract.createWorker();
+            const worker = await Tesseract.createWorker({
+                logger: m => console.log(m) // Optional: Add logging
+            });
             await worker.loadLanguage('eng');
             await worker.initialize('eng');
             const { data } = await worker.recognize(dataURL);
@@ -313,38 +466,46 @@
             return data;
         }
 
-        function drawWords(data) {
+        // Function to draw highlighted blocks on the canvas
+        function drawHighlight(x, y, width, height, text) {
             const ctx = overlayCanvas.getContext('2d');
             ctx.lineWidth = 2;
             ctx.strokeStyle = 'rgba(0, 150, 255, 1)';
             ctx.fillStyle = 'rgba(0, 150, 255, 0.25)';
+            ctx.fillRect(x, y, width, height);
+            ctx.strokeRect(x, y, width, height);
 
-            // Calculate scaling factors based on the displayed image size
-            const scaleX = overlayCanvas.width / uploadedImage.naturalWidth;
-            const scaleY = overlayCanvas.height / uploadedImage.naturalHeight;
-
-            if (!data.words) return;
-
-            for (let word of data.words) {
-                const { text, bbox } = word;
-                if (!text.trim()) continue;
-
-                const x = bbox.x0 * scaleX;
-                const y = bbox.y0 * scaleY;
-                const w = (bbox.x1 - bbox.x0) * scaleX;
-                const h = (bbox.y1 - bbox.y0) * scaleY;
-
-                ctx.fillRect(x, y, w, h);
-                ctx.strokeRect(x, y, w, h);
-
-                currentWords.push({
-                    text: text.trim(),
-                    x: x, y: y, width: w, height: h
-                });
-            }
+            // Store the highlight with its position and text
+            currentHighlights.push({
+                x: x,
+                y: y,
+                width: width,
+                height: height,
+                text: text
+            });
         }
 
-        function assignWordToField(wordText) {
+        // Click handler for the overlay canvas to assign text to fields
+        overlayCanvas.addEventListener('click', (e) => {
+            const rect = overlayCanvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+
+            for (let highlight of currentHighlights) {
+                if (
+                    clickX >= highlight.x &&
+                    clickX <= highlight.x + highlight.width &&
+                    clickY >= highlight.y &&
+                    clickY <= highlight.y + highlight.height
+                ) {
+                    assignTextToField(highlight.text);
+                    break;
+                }
+            }
+        });
+
+        // Function to assign text to a chosen input field
+        function assignTextToField(text) {
             const choice = prompt(
                 `Choose a field to assign this text:\n` +
                 `1) Item Name Short\n` +
@@ -372,7 +533,7 @@
                 case 6: targetField = field6; break;
             }
 
-            targetField.value = wordText;
+            targetField.value = text;
         }
     </script>
 </body>
