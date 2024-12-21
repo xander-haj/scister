@@ -26,21 +26,49 @@
             display: block;
             margin: 10px 0 5px 0;
         }
-        #imageInput {
+        #controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
             margin-bottom: 10px;
+        }
+        #controls button {
+            padding: 10px 15px;
+            cursor: pointer;
+            font-weight: bold;
+            border: none;
+            border-radius: 4px;
+            color: #fff;
+        }
+        #draw-button {
+            background-color: #8e44ad;
+        }
+        #perform-ocr {
+            background-color: #2cb67d;
+        }
+        #clear-image {
+            background-color: #d00000;
+        }
+        #imageInput {
+            flex: 1 1 200px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
         }
         #imageContainer {
             position: relative;
             display: inline-block;
             margin-top: 10px;
             padding: 0;
+            max-width: 100%;
+            touch-action: none; /* Prevent default touch actions */
         }
         #uploadedImage {
             max-width: 100%;
             border: 1px solid #ddd;
             display: block;
         }
-        /* Updated overlayCanvas CSS: Removed width and height */
         #overlayCanvas {
             position: absolute;
             top: 0;
@@ -65,6 +93,10 @@
             width: 100%;
             padding: 8px;
             margin-bottom: 5px;
+            box-sizing: border-box;
+        }
+        .buttons-container {
+            margin-top: 20px;
         }
         .buttons-container button {
             padding: 10px 15px;
@@ -73,27 +105,13 @@
             border: none;
             border-radius: 4px;
             margin-right: 10px;
-            margin-top: 10px;
-        }
-        #perform-ocr {
-            background-color: #2cb67d;
             color: #fff;
         }
         #update-table {
             background-color: #3498db;
-            color: #fff;
         }
         #save-csv {
             background-color: #f39c12;
-            color: #fff;
-        }
-        #clear-image {
-            background-color: #d00000;
-            color: #fff;
-        }
-        #draw-button {
-            background-color: #8e44ad;
-            color: #fff;
         }
         table {
             border-collapse: collapse;
@@ -112,24 +130,36 @@
             background: #f2f2f2;
             font-weight: bold;
         }
+
+        /* Mobile Responsive Adjustments */
+        @media (max-width: 600px) {
+            #controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .buttons-container button {
+                width: 100%;
+                margin-bottom: 10px;
+            }
+        }
     </style>
 </head>
 <body>
     <h1>OCR Image Processor with Clickable Text Highlights</h1>
-    <p>Upload an image and perform OCR. Use the "Draw" button to select specific areas for OCR. Recognized words within drawn rectangles will be highlighted in light blue on the image. Click on a highlighted block to assign the concatenated text to one of the input fields (Item Name Short, Item Name Long, UPC, Location, Downstack, Notes). You can edit fields manually as well. Once done, press "Update Table" to add a row to the table. Process multiple images by clearing the image and fields. Finally, press "Save CSV" to download all collected data.</p>
+    <p>Upload an image and perform OCR. Recognized words will be highlighted in light blue on the image. Use the "Draw" tool to select specific words you want to process. Click on a highlighted area to assign the grouped text to one of the input fields (Item Name Short, Item Name Long, UPC, Location, Downstack, Notes). You can edit fields manually as well. Once done, press "Update Table" to add a row to the table. Process multiple images by clearing the image and fields. Finally, press "Save CSV" to download all collected data.</p>
 
     <div class="input-section">
-        <!-- Added Draw Button -->
-        <button id="draw-button">Draw</button>
-        <label for="imageInput">Upload Image:</label>
-        <input type="file" id="imageInput" accept="image/*">
+        <div id="controls">
+            <input type="file" id="imageInput" accept="image/*">
+            <button id="draw-button">Draw</button>
+            <button id="perform-ocr">Perform OCR</button>
+            <button id="clear-image">Clear Image & Fields</button>
+        </div>
         <div id="imageContainer" style="display:none;">
             <img id="uploadedImage" alt="Uploaded Image">
             <canvas id="overlayCanvas"></canvas>
         </div>
         <p id="statusMessage"></p>
-        <button id="perform-ocr">Perform OCR</button>
-        <button id="clear-image">Clear Image & Fields</button>
     </div>
 
     <div id="fieldContainer">
@@ -175,9 +205,9 @@
         const overlayCanvas = document.getElementById('overlayCanvas');
         const performOcrButton = document.getElementById('perform-ocr');
         const clearImageButton = document.getElementById('clear-image');
+        const drawButton = document.getElementById('draw-button');
         const statusMessage = document.getElementById('statusMessage');
         const dataTable = document.getElementById('dataTable').querySelector('tbody');
-        const drawButton = document.getElementById('draw-button');
 
         const field1 = document.getElementById('field1');
         const field2 = document.getElementById('field2');
@@ -191,16 +221,14 @@
 
         let currentWords = []; // Store recognized words with their bounding boxes
         let imageDataURL = null; // For OCR
-        let rectangles = []; // Store user-drawn rectangles
-        let isDrawingMode = false;
-        let isDrawing = false;
+        let drawMode = false; // Indicates if draw mode is active
+        let isDrawing = false; // Indicates if the user is currently drawing
         let startX = 0;
         let startY = 0;
-        let currentRect = null;
+        let currentRect = null; // Current rectangle being drawn
+        let selectedBlocks = []; // Array to store selected blocks
 
-        // Groups for highlighted blocks
-        let wordGroups = []; // Each group has {text: '...', x, y, width, height}
-
+        // Event Listener for Image Upload
         imageInput.addEventListener('change', () => {
             const file = imageInput.files[0];
             if (!file) {
@@ -217,111 +245,129 @@
                     overlayCanvas.width = uploadedImage.clientWidth;
                     overlayCanvas.height = uploadedImage.clientHeight;
 
-                    // Position the canvas
-                    overlayCanvas.style.width = uploadedImage.clientWidth + 'px';
-                    overlayCanvas.style.height = uploadedImage.clientHeight + 'px';
-
                     clearCanvas();
                     statusMessage.textContent = 'Image loaded. Click "Perform OCR" to proceed.';
                     imageDataURL = e.target.result;
-                    // Reset any previous drawings
-                    rectangles = [];
-                    wordGroups = [];
                 };
             };
             reader.readAsDataURL(file);
         });
 
-        drawButton.addEventListener('click', () => {
-            if (!imageDataURL) {
-                alert('Please upload an image first.');
-                return;
-            }
-            isDrawingMode = !isDrawingMode;
-            if (isDrawingMode) {
-                drawButton.textContent = 'Cancel Draw';
-                statusMessage.textContent = 'Draw mode activated. Click and drag on the image to draw rectangles.';
-            } else {
-                drawButton.textContent = 'Draw';
-                statusMessage.textContent = 'Draw mode deactivated.';
-                currentRect = null;
-                redrawCanvas();
-            }
-        });
-
-        overlayCanvas.addEventListener('mousedown', (e) => {
-            if (!isDrawingMode) return;
-            isDrawing = true;
-            const rect = overlayCanvas.getBoundingClientRect();
-            startX = e.clientX - rect.left;
-            startY = e.clientY - rect.top;
-            currentRect = { x: startX, y: startY, width: 0, height: 0 };
-        });
-
-        overlayCanvas.addEventListener('mousemove', (e) => {
-            if (!isDrawingMode || !isDrawing) return;
-            const rect = overlayCanvas.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
-
-            currentRect.width = mouseX - startX;
-            currentRect.height = mouseY - startY;
-
-            redrawCanvas();
-            drawRectangle(currentRect, 'rgba(255, 0, 0, 0.3)', 'red');
-        });
-
-        overlayCanvas.addEventListener('mouseup', (e) => {
-            if (!isDrawingMode || !isDrawing) return;
-            isDrawing = false;
-            if (currentRect.width !== 0 && currentRect.height !== 0) {
-                // Normalize rectangle dimensions
-                const normalizedRect = normalizeRect(currentRect);
-                rectangles.push(normalizedRect);
-                statusMessage.textContent = `${rectangles.length} rectangle(s) drawn.`;
-            }
-            currentRect = null;
-            redrawCanvas();
-        });
-
+        // Event Listener for Perform OCR Button
         performOcrButton.addEventListener('click', async () => {
             if (!imageDataURL) {
                 alert('Please select an image first.');
                 return;
             }
-            if (rectangles.length === 0) {
-                alert('Please draw at least one rectangle to select OCR areas.');
-                return;
-            }
             statusMessage.textContent = 'Performing OCR... please wait.';
             clearCanvas();
-            wordGroups = [];
+            currentWords = [];
+            selectedBlocks = [];
             const textData = await runOCR(imageDataURL);
-            statusMessage.textContent = 'OCR complete. Click on highlighted blocks to assign fields.';
-            processOCRData(textData);
-            drawWordGroups();
+            statusMessage.textContent = 'OCR complete. Use the "Draw" tool to select specific text.';
+            // Optionally, you can auto-highlight all words if needed
+            // drawWords(textData);
         });
 
+        // Event Listener for Clear Image Button
+        clearImageButton.addEventListener('click', () => {
+            resetImageDisplay();
+            resetFields();
+            clearCanvas();
+            selectedBlocks = [];
+            statusMessage.textContent = 'Cleared image and fields. Table is preserved. You can upload a new image.';
+        });
+
+        // Event Listener for Draw Button
+        drawButton.addEventListener('click', () => {
+            if (!currentWords.length && selectedBlocks.length === 0) {
+                alert('Please perform OCR first.');
+                return;
+            }
+            drawMode = !drawMode;
+            drawButton.style.backgroundColor = drawMode ? '#6c3483' : '#8e44ad';
+            drawButton.textContent = drawMode ? 'Cancel Draw' : 'Draw';
+            statusMessage.textContent = drawMode ? 'Draw mode activated. Draw a rectangle on the image.' : 'Draw mode deactivated.';
+        });
+
+        // Event Listener for Overlay Canvas Click (for selecting blocks)
         overlayCanvas.addEventListener('click', (e) => {
-            if (wordGroups.length === 0) return;
+            if (drawMode) return; // Ignore clicks when in draw mode
             const rect = overlayCanvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
 
-            for (let group of wordGroups) {
-                if (x >= group.x && x <= group.x + group.width && y >= group.y && y <= group.y + group.height) {
-                    assignGroupToField(group.text);
+            for (let block of selectedBlocks) {
+                if (x >= block.x && x <= block.x + block.width && y >= block.y && y <= block.y + block.height) {
+                    assignBlockToField(block.text);
                     break;
                 }
             }
         });
 
-        clearImageButton.addEventListener('click', () => {
-            resetImageDisplay();
-            resetFields();
-            statusMessage.textContent = 'Cleared image and fields. Table is preserved. You can upload a new image.';
+        // Touch Events for Mobile Drawing
+        overlayCanvas.addEventListener('touchstart', (e) => {
+            if (!drawMode) return;
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = overlayCanvas.getBoundingClientRect();
+            startX = touch.clientX - rect.left;
+            startY = touch.clientY - rect.top;
+            isDrawing = true;
+            currentRect = { x: startX, y: startY, width: 0, height: 0 };
         });
 
+        overlayCanvas.addEventListener('touchmove', (e) => {
+            if (!drawMode || !isDrawing) return;
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = overlayCanvas.getBoundingClientRect();
+            const mouseX = touch.clientX - rect.left;
+            const mouseY = touch.clientY - rect.top;
+            currentRect.width = mouseX - startX;
+            currentRect.height = mouseY - startY;
+            drawCanvasWithCurrentRect();
+        });
+
+        overlayCanvas.addEventListener('touchend', (e) => {
+            if (!drawMode || !isDrawing) return;
+            e.preventDefault();
+            isDrawing = false;
+            processSelection(currentRect);
+            currentRect = null;
+        });
+
+        // Mouse Events for Desktop Drawing
+        overlayCanvas.addEventListener('mousedown', (e) => {
+            if (!drawMode) return;
+            e.preventDefault();
+            const rect = overlayCanvas.getBoundingClientRect();
+            startX = e.clientX - rect.left;
+            startY = e.clientY - rect.top;
+            isDrawing = true;
+            currentRect = { x: startX, y: startY, width: 0, height: 0 };
+        });
+
+        overlayCanvas.addEventListener('mousemove', (e) => {
+            if (!drawMode || !isDrawing) return;
+            e.preventDefault();
+            const rect = overlayCanvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            currentRect.width = mouseX - startX;
+            currentRect.height = mouseY - startY;
+            drawCanvasWithCurrentRect();
+        });
+
+        overlayCanvas.addEventListener('mouseup', (e) => {
+            if (!drawMode || !isDrawing) return;
+            e.preventDefault();
+            isDrawing = false;
+            processSelection(currentRect);
+            currentRect = null;
+        });
+
+        // Update Table Button
         updateTableButton.addEventListener('click', () => {
             const row = document.createElement('tr');
             const cols = [field1.value.trim(), field2.value.trim(), field3.value.trim(), field4.value.trim(), field5.value.trim(), field6.value.trim()];
@@ -336,8 +382,10 @@
             });
             dataTable.appendChild(row);
             alert('Row added to the table.');
+            resetFields();
         });
 
+        // Save CSV Button
         saveCsvButton.addEventListener('click', () => {
             const rows = dataTable.querySelectorAll('tr');
             if (rows.length === 0) {
@@ -365,17 +413,15 @@
             URL.revokeObjectURL(url);
         });
 
+        // Function to Reset Image Display
         function resetImageDisplay() {
             uploadedImage.src = '';
             imageContainer.style.display = 'none';
             imageDataURL = null;
             clearCanvas();
-            rectangles = [];
-            wordGroups = [];
-            isDrawingMode = false;
-            drawButton.textContent = 'Draw';
         }
 
+        // Function to Reset Input Fields
         function resetFields() {
             field1.value = '';
             field2.value = '';
@@ -385,27 +431,13 @@
             field6.value = '';
         }
 
+        // Function to Clear Canvas
         function clearCanvas() {
             const ctx = overlayCanvas.getContext('2d');
             ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
         }
 
-        function redrawCanvas() {
-            clearCanvas();
-            // Draw existing rectangles
-            rectangles.forEach(rect => {
-                drawRectangle(rect, 'rgba(255, 0, 0, 0.3)', 'red');
-            });
-            // Draw word groups
-            wordGroups.forEach(group => {
-                drawRectangle(group, 'rgba(0, 150, 255, 0.25)', 'rgba(0, 150, 255, 1)');
-            });
-            // Draw current rectangle if any
-            if (currentRect) {
-                drawRectangle(currentRect, 'rgba(255, 0, 0, 0.3)', 'red');
-            }
-        }
-
+        // Function to Run OCR using Tesseract.js
         async function runOCR(dataURL) {
             const worker = await Tesseract.createWorker({
                 logger: m => console.log(m)
@@ -414,72 +446,152 @@
             await worker.initialize('eng');
             const { data } = await worker.recognize(dataURL);
             await worker.terminate();
+            currentWords = data.words.map(word => ({
+                text: word.text.trim(),
+                x0: word.bbox.x0,
+                y0: word.bbox.y0,
+                x1: word.bbox.x1,
+                y1: word.bbox.y1
+            }));
             return data;
         }
 
-        function processOCRData(data) {
+        // Function to Draw Words (Not used in this implementation but kept for reference)
+        function drawWords(data) {
+            const ctx = overlayCanvas.getContext('2d');
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = 'rgba(0, 150, 255, 1)';
+            ctx.fillStyle = 'rgba(0, 150, 255, 0.25)';
+
+            // Calculate scaling factors based on the displayed image size
+            const scaleX = overlayCanvas.width / uploadedImage.naturalWidth;
+            const scaleY = overlayCanvas.height / uploadedImage.naturalHeight;
+
             if (!data.words) return;
 
-            // For each rectangle, find words within it
-            rectangles.forEach(rect => {
-                const wordsInRect = data.words.filter(word => {
-                    const wordX = word.bbox.x0 * (overlayCanvas.width / uploadedImage.naturalWidth);
-                    const wordY = word.bbox.y0 * (overlayCanvas.height / uploadedImage.naturalHeight);
-                    const wordW = (word.bbox.x1 - word.bbox.x0) * (overlayCanvas.width / uploadedImage.naturalWidth);
-                    const wordH = (word.bbox.y1 - word.bbox.y0) * (overlayCanvas.height / uploadedImage.naturalHeight);
-                    return (
-                        wordX >= rect.x &&
-                        wordY >= rect.y &&
-                        (wordX + wordW) <= (rect.x + rect.width) &&
-                        (wordY + wordH) <= (rect.y + rect.height)
-                    );
-                });
+            for (let word of data.words) {
+                const { text, bbox } = word;
+                if (!text.trim()) continue;
 
-                if (wordsInRect.length > 0) {
-                    // Concatenate words to form a single string
-                    const sortedWords = wordsInRect.sort((a, b) => {
-                        if (a.bbox.y0 === b.bbox.y0) {
-                            return a.bbox.x0 - b.bbox.x0;
-                        }
-                        return a.bbox.y0 - b.bbox.y0;
-                    });
-                    const concatenatedText = sortedWords.map(w => w.text).join(' ');
+                const x = bbox.x0 * scaleX;
+                const y = bbox.y0 * scaleY;
+                const w = (bbox.x1 - bbox.x0) * scaleX;
+                const h = (bbox.y1 - bbox.y0) * scaleY;
 
-                    // Calculate the bounding box that encompasses all words
-                    const x0 = Math.min(...wordsInRect.map(w => w.bbox.x0));
-                    const y0 = Math.min(...wordsInRect.map(w => w.bbox.y0));
-                    const x1 = Math.max(...wordsInRect.map(w => w.bbox.x1));
-                    const y1 = Math.max(...wordsInRect.map(w => w.bbox.y1));
+                ctx.fillRect(x, y, w, h);
+                ctx.strokeRect(x, y, w, h);
+            }
+        }
 
-                    const groupRect = {
-                        x: x0 * (overlayCanvas.width / uploadedImage.naturalWidth),
-                        y: y0 * (overlayCanvas.height / uploadedImage.naturalHeight),
-                        width: (x1 - x0) * (overlayCanvas.width / uploadedImage.naturalWidth),
-                        height: (y1 - y0) * (overlayCanvas.height / uploadedImage.naturalHeight),
-                        text: concatenatedText
-                    };
-
-                    wordGroups.push(groupRect);
-                }
+        // Function to Draw Current Rectangle
+        function drawCanvasWithCurrentRect() {
+            clearCanvas();
+            // Redraw existing selected blocks
+            selectedBlocks.forEach(block => {
+                drawBlock(block);
             });
+            if (currentRect) {
+                const ctx = overlayCanvas.getContext('2d');
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = 'rgba(255, 0, 0, 1)';
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.25)';
+                const rect = normalizeRect(currentRect);
+                ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+                ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+            }
         }
 
-        function drawWordGroups() {
-            redrawCanvas();
+        // Function to Normalize Rectangle (handles negative width/height)
+        function normalizeRect(rect) {
+            let { x, y, width, height } = rect;
+            if (width < 0) {
+                x += width;
+                width = Math.abs(width);
+            }
+            if (height < 0) {
+                y += height;
+                height = Math.abs(height);
+            }
+            return { x, y, width, height };
         }
 
-        function drawRectangle(rect, fillStyle, strokeStyle) {
+        // Function to Process Selection After Drawing
+        function processSelection(rect) {
+            const normalizedRect = normalizeRect(rect);
+            // Calculate scaling factors based on the displayed image size
+            const scaleX = uploadedImage.naturalWidth / overlayCanvas.width;
+            const scaleY = uploadedImage.naturalHeight / overlayCanvas.height;
+
+            // Convert rectangle coordinates back to natural image coordinates
+            const imgRect = {
+                x0: normalizedRect.x * scaleX,
+                y0: normalizedRect.y * scaleY,
+                x1: (normalizedRect.x + normalizedRect.width) * scaleX,
+                y1: (normalizedRect.y + normalizedRect.height) * scaleY
+            };
+
+            // Find words inside the rectangle
+            const wordsInRect = currentWords.filter(word => {
+                return word.x0 >= imgRect.x0 && word.x1 <= imgRect.x1 &&
+                       word.y0 >= imgRect.y0 && word.y1 <= imgRect.y1;
+            });
+
+            if (wordsInRect.length === 0) {
+                alert('No words found within the selected area.');
+                return;
+            }
+
+            // Combine texts of words in the rectangle
+            const combinedText = wordsInRect.map(word => word.text).join(' ');
+
+            // Determine the bounding box of the selected words
+            const boundingBox = {
+                x0: Math.min(...wordsInRect.map(w => w.x0)),
+                y0: Math.min(...wordsInRect.map(w => w.y0)),
+                x1: Math.max(...wordsInRect.map(w => w.x1)),
+                y1: Math.max(...wordsInRect.map(w => w.y1))
+            };
+
+            // Convert bounding box back to canvas coordinates
+            const canvasBoundingBox = {
+                x: boundingBox.x0 / scaleX,
+                y: boundingBox.y0 / scaleY,
+                width: (boundingBox.x1 - boundingBox.x0) / scaleX,
+                height: (boundingBox.y1 - boundingBox.y0) / scaleY
+            };
+
+            // Create a block object
+            const block = {
+                text: combinedText,
+                x: canvasBoundingBox.x,
+                y: canvasBoundingBox.y,
+                width: canvasBoundingBox.width,
+                height: canvasBoundingBox.height
+            };
+
+            // Add to selected blocks
+            selectedBlocks.push(block);
+
+            // Redraw the canvas to include the new block
+            drawCanvasWithCurrentRect();
+
+            statusMessage.textContent = 'Selection made. Click on the highlighted area to assign text to a field.';
+        }
+
+        // Function to Draw a Highlight Block
+        function drawBlock(block) {
             const ctx = overlayCanvas.getContext('2d');
-            ctx.fillStyle = fillStyle;
-            ctx.strokeStyle = strokeStyle;
             ctx.lineWidth = 2;
-            ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
-            ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+            ctx.strokeStyle = 'rgba(0, 150, 255, 1)';
+            ctx.fillStyle = 'rgba(0, 150, 255, 0.25)';
+            ctx.fillRect(block.x, block.y, block.width, block.height);
+            ctx.strokeRect(block.x, block.y, block.width, block.height);
         }
 
-        function assignGroupToField(text) {
+        // Function to Assign Block Text to a Field
+        function assignBlockToField(text) {
             const choice = prompt(
-                `Choose a field to assign this text:\n` +
+                `Assign the selected text to a field:\n` +
                 `1) Item Name Short\n` +
                 `2) Item Name Long\n` +
                 `3) UPC\n` +
@@ -508,17 +620,44 @@
             targetField.value = text;
         }
 
-        function normalizeRect(rect) {
-            let { x, y, width, height } = rect;
-            if (width < 0) {
-                x += width;
-                width = Math.abs(width);
+        // Function to Draw All Selected Blocks
+        function drawAllBlocks() {
+            clearCanvas();
+            selectedBlocks.forEach(block => {
+                drawBlock(block);
+            });
+        }
+
+        // Function to Assign Words to Fields (Original Functionality)
+        function assignWordToField(wordText) {
+            const choice = prompt(
+                `Choose a field to assign this text:\n` +
+                `1) Item Name Short\n` +
+                `2) Item Name Long\n` +
+                `3) UPC\n` +
+                `4) Location\n` +
+                `5) Downstack\n` +
+                `6) Notes\n\n` +
+                `Enter a number 1-6:`
+            );
+            if (!choice) return; // user canceled
+            const num = parseInt(choice, 10);
+            if (isNaN(num) || num < 1 || num > 6) {
+                alert('Invalid choice.');
+                return;
             }
-            if (height < 0) {
-                y += height;
-                height = Math.abs(height);
+
+            let targetField;
+            switch (num) {
+                case 1: targetField = field1; break;
+                case 2: targetField = field2; break;
+                case 3: targetField = field3; break;
+                case 4: targetField = field4; break;
+                case 5: targetField = field5; break;
+                case 6: targetField = field6; break;
             }
-            return { x, y, width, height };
+
+            targetField.value = wordText;
         }
     </script>
 </body>
