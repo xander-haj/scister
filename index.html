@@ -40,12 +40,14 @@
             border: 1px solid #ddd;
             display: block;
         }
+        /* Updated overlayCanvas CSS: Removed width and height */
         #overlayCanvas {
             position: absolute;
             top: 0;
             left: 0;
             z-index: 10;
             pointer-events: auto;
+            /* Removed width and height to manage via JavaScript */
         }
         #statusMessage {
             font-size: 14px;
@@ -193,8 +195,11 @@
                 uploadedImage.src = e.target.result;
                 uploadedImage.onload = () => {
                     imageContainer.style.display = 'inline-block';
-                    overlayCanvas.width = uploadedImage.naturalWidth;
-                    overlayCanvas.height = uploadedImage.naturalHeight;
+                    
+                    // Set the canvas size to match the displayed image size
+                    overlayCanvas.width = uploadedImage.clientWidth;
+                    overlayCanvas.height = uploadedImage.clientHeight;
+
                     clearCanvas();
                     statusMessage.textContent = 'Image loaded. Click "Perform OCR" to proceed.';
                     imageDataURL = e.target.result;
@@ -313,32 +318,31 @@
             ctx.lineWidth = 2;
             ctx.strokeStyle = 'rgba(0, 150, 255, 1)';
             ctx.fillStyle = 'rgba(0, 150, 255, 0.25)';
-        
-            const scaleX = uploadedImage.naturalWidth / data.width;  // Use natural dimensions
-            const scaleY = uploadedImage.naturalHeight / data.height;
-        
+
+            // Calculate scaling factors based on the displayed image size
+            const scaleX = overlayCanvas.width / uploadedImage.naturalWidth;
+            const scaleY = overlayCanvas.height / uploadedImage.naturalHeight;
+
             if (!data.words) return;
-        
+
             for (let word of data.words) {
                 const { text, bbox } = word;
                 if (!text.trim()) continue;
-        
+
                 const x = bbox.x0 * scaleX;
                 const y = bbox.y0 * scaleY;
                 const w = (bbox.x1 - bbox.x0) * scaleX;
                 const h = (bbox.y1 - bbox.y0) * scaleY;
-        
-                // Draw the highlight box
+
                 ctx.fillRect(x, y, w, h);
                 ctx.strokeRect(x, y, w, h);
-        
+
                 currentWords.push({
                     text: text.trim(),
                     x: x, y: y, width: w, height: h
                 });
             }
         }
-
 
         function assignWordToField(wordText) {
             const choice = prompt(
