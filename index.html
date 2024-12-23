@@ -1054,6 +1054,9 @@
                 rectangleTexts[i] = text; // Map text to rectangle index
             }
 
+            // **Added Line: Hide resize handles after OCR**
+            handlesVisible = false;
+
             statusMessage.textContent = 'OCR complete. Click on highlighted areas to assign fields.';
             redrawCanvas(); // Redraw rectangles in blue
         });
@@ -1371,6 +1374,9 @@
 
         // Function to Resize Rectangle
         function resizeRectangle(x, y) {
+             // **Added Condition: Prevent resizing if OCR has been performed**
+            if (!handlesVisible) return;
+
             if (resizeTarget === 'crop') {
                 if (!cropRect || !activeHandle) return;
                 switch (activeHandle) {
