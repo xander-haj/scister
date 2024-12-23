@@ -421,6 +421,50 @@
                 padding: 10px 12px;
             }
         }
+
+        /* Info Modal Styles */
+        #infoModal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1500; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0, 0, 0, 0.5); /* Black w/ opacity */
+        }
+
+        /* Modal Content Box */
+        #infoModalContent {
+            background-color: #1e1e1e;
+            margin: 10% auto; /* 10% from the top and centered */
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%; /* Could be more or less, depending on screen size */
+            border-radius: 8px;
+            color: #e0e0e0;
+            position: relative;
+        }
+
+        /* Close Button */
+        #infoModalClose {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            cursor: pointer;
+        }
+
+        #infoModalClose:hover,
+        #infoModalClose:focus {
+            color: #fff;
+            text-decoration: none;
+        }
+
     </style>
 </head>
 <body>
@@ -462,10 +506,11 @@
         </div>
     </div>
 
+     <!-- Info Button Added at the Bottom of Side Menu -->
+     <button id="info-button" class="side-menu-button">Info</button>
+
     <div class="container">
         <h1>OCR Image Processor</h1>
-        <p>Upload an image and perform OCR. Use the side menu to select specific areas for OCR or to crop the image. After drawing a crop rectangle, click "Confirm Crop" to apply the crop. Recognized words within drawn rectangles will be highlighted in light blue on the image. Click on a highlighted block to assign the concatenated text to one of the input fields. Once done, press "Update Table" to add a row to the table. Process multiple images by clearing the image and fields. Finally, press "Save CSV" to download all collected data.</p>
-
         <!-- Main Input Section -->
         <div class="input-section">
             <label for="imageInput">Upload Image:</label>
@@ -513,6 +558,17 @@
         </tbody>
     </table>
 
+    <!-- Info Modal Structure -->
+    <div id="infoModal">
+        <div id="infoModalContent">
+            <span id="infoModalClose">&times;</span>
+            <h2>Information</h2>
+            <p>
+                Upload an image and perform OCR. Use the side menu to select specific areas for OCR or to crop the image. After drawing a crop rectangle, click "Confirm Crop" to apply the crop. Recognized words within drawn rectangles will be highlighted in light blue on the image. Click on a highlighted block to assign the concatenated text to one of the input fields. Once done, press "Update Table" to add a row to the table. Process multiple images by clearing the image and fields. Finally, press "Save CSV" to download all collected data.
+            </p>
+        </div>
+    </div>
+
     <script>
         // DOM Elements
         const imageInput = document.getElementById('imageInput');
@@ -554,6 +610,11 @@
         const hamburgerBtn = document.getElementById('hamburgerBtn');
         const sideMenu = document.getElementById('sideMenu');
 
+        // DOM Elements for Info Modal
+        const infoButton = document.getElementById('info-button');
+        const infoModal = document.getElementById('infoModal');
+        const infoModalClose = document.getElementById('infoModalClose');
+
         // State Variables
         let userRectangles = []; // Array to store user-drawn rectangles
         let rectangleTexts = {}; // Object to map rectangles to their OCR text
@@ -593,6 +654,23 @@
                 if (sideMenu.classList.contains('active')) {
                     sideMenu.classList.remove('active');
                 }
+            }
+        });
+
+        // Event Listener to Open Info Modal
+        infoButton.addEventListener('click', () => {
+            infoModal.style.display = 'block';
+        });
+
+        // Event Listener to Close Info Modal when Close Button is Clicked
+        infoModalClose.addEventListener('click', () => {
+            infoModal.style.display = 'none';
+        });
+
+        // Event Listener to Close Info Modal when Clicking Outside the Modal Content
+        window.addEventListener('click', (event) => {
+            if (event.target == infoModal) {
+                infoModal.style.display = 'none';
             }
         });
 
