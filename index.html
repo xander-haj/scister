@@ -21,18 +21,19 @@
         }
 
         h1 {
-            font-size: 28px;
-            margin-bottom: 15px;
+            font-size: 24px;
+            margin-bottom: 10px;
             text-align: center;
         }
 
         p {
-            margin-bottom: 15px;
+            margin-bottom: 10px;
             text-align: center;
-            max-width: 800px;
+            max-width: 90%;
             margin-left: auto;
             margin-right: auto;
             line-height: 1.5;
+            font-size: 14px;
         }
 
         /* Centered Container */
@@ -42,7 +43,7 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 20px;
+            padding: 10px;
         }
 
         /* Side Menu Styles */
@@ -73,6 +74,9 @@
             font-size: 16px;
             cursor: pointer;
             transition: background-color 0.3s, transform 0.2s;
+            position: relative;
+            overflow: hidden;
+            text-align: center;
         }
 
         /* Specific Button Colors */
@@ -158,9 +162,14 @@
             border-radius: 8px;
             cursor: pointer;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
             transition: background-color 0.3s ease;
+            position: fixed; /* Fixed position */
+            top: 20px; /* 20px from top */
+            left: 20px; /* 20px from left */
+            z-index: 1100; /* Above side menu */
         }
 
         #hamburgerBtn:hover {
@@ -195,6 +204,7 @@
             display: block;
             margin: 10px 0 5px 0;
             font-weight: bold;
+            font-size: 16px;
         }
 
         #imageInput {
@@ -206,6 +216,7 @@
             background-color: #2c2c2c;
             color: #e0e0e0;
             cursor: pointer;
+            font-size: 14px;
         }
 
         #imageInput::file-selector-button {
@@ -216,6 +227,7 @@
             border-radius: 4px;
             cursor: pointer;
             transition: background-color 0.3s;
+            font-size: 14px;
         }
 
         #imageInput::file-selector-button:hover {
@@ -243,6 +255,8 @@
             top: 0;
             left: 0;
             border-radius: 8px;
+            width: 100%;
+            height: 100%;
         }
 
         #postprocessingCanvas {
@@ -268,12 +282,14 @@
             margin-top: 20px;
             width: 100%;
             max-width: 600px;
+            padding: 0 10px;
         }
 
         #fieldContainer label {
             display: block;
             margin: 10px 0 5px 0;
             font-weight: bold;
+            font-size: 16px;
         }
 
         #fieldContainer input[type="text"] {
@@ -285,6 +301,7 @@
             border-radius: 4px;
             background-color: #2c2c2c;
             color: #e0e0e0;
+            font-size: 14px;
         }
 
         /* Buttons in Side Menu */
@@ -309,6 +326,7 @@
             margin: 8px 0 4px 0;
             text-align: left;
             color: #e0e0e0;
+            font-size: 14px;
         }
 
         .postprocessing-controls input[type="range"],
@@ -332,6 +350,7 @@
             padding: 12px 15px;
             text-align: left;
             border-bottom: 1px solid #333;
+            font-size: 14px;
         }
 
         #dataTable th {
@@ -343,26 +362,9 @@
             background-color: #2a2a2a;
         }
 
-        /* Responsive Adjustments */
-        @media (max-width: 600px) {
-            #sideMenu {
-                width: 200px;
-            }
-
-            #hamburgerBtn {
-                width: 35px;
-                height: 35px;
-            }
-
-            #sideMenu button {
-                font-size: 14px;
-                padding: 10px 15px;
-            }
-        }
-
         /* Modern Button Styles */
         .side-menu-button {
-            position: sticky;
+            position: relative;
         }
 
         .side-menu-button::after {
@@ -380,6 +382,45 @@
             width: 100%;
         }
 
+        /* Responsive Adjustments for Mobile */
+        @media (max-width: 600px) {
+            #sideMenu {
+                width: 200px;
+            }
+
+            #hamburgerBtn {
+                width: 40px;
+                height: 40px;
+                top: 15px;
+                left: 15px;
+            }
+
+            #sideMenu button {
+                font-size: 14px;
+                padding: 10px 15px;
+            }
+
+            h1 {
+                font-size: 22px;
+            }
+
+            p {
+                font-size: 13px;
+            }
+
+            #fieldContainer label, .postprocessing-controls label {
+                font-size: 14px;
+            }
+
+            #fieldContainer input[type="text"], .postprocessing-controls input[type="range"], .postprocessing-controls input[type="checkbox"] {
+                font-size: 13px;
+            }
+
+            #dataTable th, #dataTable td {
+                font-size: 13px;
+                padding: 10px 12px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -548,19 +589,6 @@
             }
         });
 
-        document.addEventListener("DOMContentLoaded", () => {
-            const hamburgerBtn = document.getElementById('hamburgerBtn');
-
-            // Function to set the button in a fixed position relative to the viewport
-            function setFixedButtonPosition() {
-                hamburgerBtn.style.position = 'fixed'; // Always stays relative to the viewport
-                hamburgerBtn.style.top = '20px'; // Neatly fixed 20px from the top of the viewport
-                hamburgerBtn.style.left = '20px'; // 20px from the left
-                hamburgerBtn.style.zIndex = '1100'; // Keeps it floating above other content
-            }
-        });
-
-
         // Close Side Menu When Clicking Outside
         window.addEventListener('click', (e) => {
             if (!sideMenu.contains(e.target) && e.target !== hamburgerBtn) {
@@ -569,8 +597,6 @@
                 }
             }
         });
-
-        
 
         // Event Listener for Postprocessing Button to Toggle Controls
         postprocessingButton.addEventListener('click', () => {
@@ -669,7 +695,7 @@
             isDrawingMode = !isDrawingMode;
             if (isDrawingMode) {
                 drawButton.textContent = 'Cancel Draw';
-                statusMessage.textContent = 'Draw mode activated. Click and drag on the image to draw rectangles for OCR.';
+                statusMessage.textContent = 'Draw mode activated. Tap and drag on the image to draw rectangles for OCR.';
                 cropRect = null;
                 confirmCropButton.style.display = 'none';
                 handlesVisible = true;
@@ -696,7 +722,7 @@
             isCroppingMode = !isCroppingMode;
             if (isCroppingMode) {
                 cropButton.textContent = 'Cancel Crop';
-                statusMessage.textContent = 'Crop mode activated. Click and drag on the image to select the crop area.';
+                statusMessage.textContent = 'Crop mode activated. Tap and drag on the image to select the crop area.';
                 cropRect = null;
                 confirmCropButton.style.display = 'none';
                 handlesVisible = true;
@@ -910,7 +936,7 @@
             clearCanvas();
             wordGroups = [];
             const textData = await runOCR(imageDataURL);
-            statusMessage.textContent = 'OCR complete. Click on highlighted blocks to assign fields.';
+            statusMessage.textContent = 'OCR complete. Tap on highlighted blocks to assign fields.';
             processOCRData(textData);
             drawWordGroups();
             handlesVisible = false;
