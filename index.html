@@ -151,7 +151,7 @@
 
         /* Hamburger Menu Button Styles */
         #hamburgerBtn {
-            position: sticky;
+            position: absolute;
             top: 20px;
             left: 20px;
             z-index: 1100;
@@ -164,7 +164,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: background-color 0.3s;
+            transition: background-color 0.3s,top 0.3s;
         }
 
         #hamburgerBtn:hover {
@@ -179,6 +179,7 @@
             background-color: #e0e0e0;
             margin: 1px 0;
             transition: 0.4s;
+            border-radius: 2px;
         }
 
         /* Side Menu Active State */
@@ -551,6 +552,23 @@
             }
         });
 
+        document.addEventListener("DOMContentLoaded", () => {
+            const hamburgerBtn = document.getElementById('hamburgerBtn');
+
+            // Function to update button position based on scroll
+            function updateButtonPosition() {
+                const scrollY = window.scrollY; // Current scroll position
+                hamburgerBtn.style.top = `${scrollY + 20}px`; // 20px from the top of the viewport
+            }
+
+            // Listen for scroll events and adjust the button position dynamically
+            window.addEventListener("scroll", updateButtonPosition);
+
+            // Initial position adjustment when the page loads
+            updateButtonPosition();
+        });
+
+
         // Close Side Menu When Clicking Outside
         window.addEventListener('click', (e) => {
             if (!sideMenu.contains(e.target) && e.target !== hamburgerBtn) {
@@ -560,12 +578,7 @@
             }
         });
 
-        // Close Side Menu After Clicking a Button
-        sideMenu.querySelectorAll('button').forEach(button => {
-            button.addEventListener('click', () => {
-                sideMenu.classList.remove('active');
-            });
-        });
+        
 
         // Event Listener for Postprocessing Button to Toggle Controls
         postprocessingButton.addEventListener('click', () => {
