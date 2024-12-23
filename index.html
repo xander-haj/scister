@@ -555,23 +555,21 @@
         const sideMenu = document.getElementById('sideMenu');
 
         // State Variables
-        let currentWords = [];
+        let userRectangles = []; // Array to store user-drawn rectangles
+        let rectangleTexts = {}; // Object to map rectangles to their OCR text
         let imageDataURL = null;
-        let ocrRectangles = [];
         let cropRect = null;
         let isDrawingMode = false;
         let isCroppingMode = false;
         let isDrawing = false;
         let isResizing = false;
-        let resizeHandle = null;
-        let resizeTarget = null;
+        let activeHandle = null;
         let startX = 0;
         let startY = 0;
         let currentRect = null;
-        let wordGroups = [];
         let HANDLE_SIZE = 10;
         const HANDLE_TYPES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
-        let activeHandle = null;
+        let resizeTarget = null;
         let handlesVisible = true;
 
         // Side Menu Toggle Function
@@ -667,8 +665,8 @@
                     clearCanvas();
                     statusMessage.textContent = 'Image loaded. You can crop or draw on the image.';
                     imageDataURL = e.target.result;
-                    ocrRectangles = [];
-                    wordGroups = [];
+                    userRectangles = [];
+                    rectangleTexts = {};
                     cropRect = null;
                     handlesVisible = true;
                     confirmCropButton.style.display = 'none';
@@ -699,7 +697,7 @@
                 cropRect = null;
                 confirmCropButton.style.display = 'none';
                 handlesVisible = true;
-                undoDrawButton.style.display = ocrRectangles.length > 0 ? 'block' : 'none';
+                undoDrawButton.style.display = userRectangles.length > 0 ? 'block' : 'none';
                 redrawCanvas();
             } else {
                 drawButton.textContent = 'Draw';
@@ -753,14 +751,14 @@
 
         // Event Listener for Undo Draw Button
         undoDrawButton.addEventListener('click', () => {
-            if (ocrRectangles.length === 0) {
+            if (userRectangles.length === 0) {
                 alert('No rectangles to undo.');
                 return;
             }
-            ocrRectangles.pop();
+            userRectangles.pop();
             redrawCanvas();
             statusMessage.textContent = 'Last drawn rectangle has been removed.';
-            undoDrawButton.style.display = ocrRectangles.length > 0 ? 'block' : 'none';
+            undoDrawButton.style.display = userRectangles.length > 0 ? 'block' : 'none';
         });
 
         // Mouse Events for Desktop Drawing/Cropping and Resizing
@@ -818,9 +816,9 @@
                 isDrawing = false;
                 const normalizedRect = normalizeRect(currentRect);
                 if (isDrawingMode) {
-                    ocrRectangles.push(normalizedRect);
-                    statusMessage.textContent = `${ocrRectangles.length} OCR rectangle(s) drawn.`;
-                    undoDrawButton.style.display = ocrRectangles.length > 0 ? 'block' : 'none';
+                    userRectangles.push(normalizedRect);
+                    statusMessage.textContent = `${userRectangles.length} OCR rectangle(s) drawn.`;
+                    undoDrawButton.style.display = userRectangles.length > 0 ? 'block' : 'none';
                 } else if (isCroppingMode) {
                     if (cropRect) {
                         cropRect = normalizedRect;
@@ -897,9 +895,9 @@
                 isDrawing = false;
                 const normalizedRect = normalizeRect(currentRect);
                 if (isDrawingMode) {
-                    ocrRectangles.push(normalizedRect);
-                    statusMessage.textContent = `${ocrRectangles.length} OCR rectangle(s) drawn.`;
-                    undoDrawButton.style.display = ocrRectangles.length > 0 ? 'block' : 'none';
+                    userRectangles.push(normalizedRect);
+                    statusMessage.textContent = `${userRectangles.length} OCR rectangle(s) drawn.`;
+                    undoDrawButton.style.display = userRectangles.length > 0 ? 'block' : 'none';
                 } else if (isCroppingMode) {
                     if (cropRect) {
                         cropRect = normalizedRect;
@@ -921,7 +919,7 @@
                 alert('Please select an image first.');
                 return;
             }
-            if (ocrRectangles.length === 0) {
+            if (userRectangles.length === 0) {
                 alert('Please draw at least one rectangle to select OCR areas.');
                 return;
             }
@@ -934,25 +932,69 @@
             }
 
             clearCanvas();
-            wordGroups = [];
-            const textData = await runOCR(imageDataURL);
-            statusMessage.textContent = 'OCR complete. Tap on highlighted blocks to assign fields.';
-            processOCRData(textData);
-            drawWordGroups();
-            handlesVisible = false;
-            redrawCanvas();
+            statusMessage.textContent = 'Performing OCR on selected areas...';
+            rectangleTexts = {}; // Reset previous texts
+
+            for (let i = 0; i < userRectangles.length; i++) {
+                const rect = userRectangles[i];
+                const text = await performOCROnRectangle(rect);
+                rectangleTexts[i] = text; // Map text to rectangle index
+            }
+
+            statusMessage.textContent = 'OCR complete. Click on highlighted areas to assign fields.';
+            redrawCanvas(); // Redraw rectangles in blue
         });
 
-        // Handle Clicks on Highlighted Blocks
+        // Function to Perform OCR on a Specific Rectangle
+        async function performOCROnRectangle(rect) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            // Calculate scaling factors
+            const scaleX = uploadedImage.naturalWidth / uploadedImage.clientWidth;
+            const scaleY = uploadedImage.naturalHeight / uploadedImage.clientHeight;
+
+            // Define the crop area on the original image
+            const cropX = rect.x * scaleX;
+            const cropY = rect.y * scaleY;
+            const cropWidth = rect.width * scaleX;
+            const cropHeight = rect.height * scaleY;
+
+            canvas.width = cropWidth;
+            canvas.height = cropHeight;
+
+            ctx.drawImage(uploadedImage, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+            const croppedDataURL = canvas.toDataURL();
+
+            // Perform OCR using Tesseract.js on the cropped image
+            const worker = await Tesseract.createWorker({
+                logger: m => console.log(m)
+            });
+            await worker.loadLanguage('eng');
+            await worker.initialize('eng');
+            const { data } = await worker.recognize(croppedDataURL);
+            await worker.terminate();
+
+            return data.text.trim();
+        }
+
+        // Handle Clicks on Highlighted Areas (Blue Rectangles)
         overlayCanvas.addEventListener('click', (e) => {
-            if (wordGroups.length === 0) return;
+            if (userRectangles.length === 0) return;
             const rect = overlayCanvas.getBoundingClientRect();
             const x = (e.clientX - rect.left);
             const y = (e.clientY - rect.top);
 
-            for (let group of wordGroups) {
-                if (x >= group.x && x <= group.x + group.width && y >= group.y && y <= group.y + group.height) {
-                    assignGroupToField(group.text);
+            // Iterate through all user rectangles to find if click is inside any
+            for (let i = 0; i < userRectangles.length; i++) {
+                const r = userRectangles[i];
+                if (x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height) {
+                    const text = rectangleTexts[i] || '';
+                    if (text === '') {
+                        alert('No text extracted for this area.');
+                        return;
+                    }
+                    assignTextToField(text);
                     break;
                 }
             }
@@ -1022,8 +1064,8 @@
             imageContainer.style.display = 'none';
             imageDataURL = null;
             clearCanvas();
-            ocrRectangles = [];
-            wordGroups = [];
+            userRectangles = [];
+            rectangleTexts = {};
             cropRect = null;
             isDrawingMode = false;
             isCroppingMode = false;
@@ -1056,24 +1098,22 @@
         // Function to Redraw Canvas
         function redrawCanvas() {
             clearCanvas();
-            // Draw existing OCR rectangles
-            ocrRectangles.forEach(rect => {
-                drawRectangle(rect, 'rgba(255, 0, 0, 0.3)', 'red');
+            // Draw existing user rectangles
+            userRectangles.forEach((rect, index) => {
+                const fillStyle = rectangleTexts[index] ? 'rgba(0, 150, 255, 0.3)' : 'rgba(255, 0, 0, 0.3)';
+                const strokeStyle = rectangleTexts[index] ? 'blue' : 'red';
+                drawRectangle(rect, fillStyle, strokeStyle);
                 if (handlesVisible) {
-                    drawHandles(rect);
+                    drawHandles(rect, index);
                 }
             });
             // Draw crop rectangle if any
             if (cropRect) {
                 drawRectangle(cropRect, 'rgba(0, 150, 255, 0.25)', 'rgba(0, 150, 255, 1)');
                 if (handlesVisible) {
-                    drawHandles(cropRect);
+                    drawHandles(cropRect, 'crop');
                 }
             }
-            // Draw word groups
-            wordGroups.forEach(group => {
-                drawRectangle(group, 'rgba(0, 150, 255, 0.25)', 'rgba(0, 150, 255, 1)');
-            });
             // Draw current rectangle if any
             if (currentRect) {
                 const style = isDrawingMode ? { fill: 'rgba(255, 0, 0, 0.3)', stroke: 'red' } : { fill: 'rgba(0, 150, 255, 0.25)', stroke: 'rgba(0, 150, 255, 1)' };
@@ -1106,7 +1146,7 @@
         }
 
         // Draw Resize Handles for a Rectangle
-        function drawHandles(rect) {
+        function drawHandles(rect, index) {
             const ctx = overlayCanvas.getContext('2d');
             const handles = getHandlePositions(rect);
             ctx.fillStyle = '#e0e0e0';
@@ -1136,9 +1176,9 @@
                 }
             }
 
-            // Check ocrRectangles
-            for (let i = 0; i < ocrRectangles.length; i++) {
-                const rect = ocrRectangles[i];
+            // Check userRectangles
+            for (let i = 0; i < userRectangles.length; i++) {
+                const rect = userRectangles[i];
                 const handles = getHandlePositions(rect);
                 for (let key of HANDLE_TYPES) {
                     const pos = handles[key];
@@ -1148,7 +1188,7 @@
                         y >= pos.y - HANDLE_SIZE / 2 &&
                         y <= pos.y + HANDLE_SIZE / 2
                     ) {
-                        return { type: key, rect: 'ocr', index: i };
+                        return { type: key, rect: 'user', index: i };
                     }
                 }
             }
@@ -1173,104 +1213,6 @@
             width = Math.min(width, uploadedImage.clientWidth - x);
             height = Math.min(height, uploadedImage.clientHeight - y);
             return { x, y, width, height };
-        }
-
-        // Function to Run OCR using Tesseract.js
-        async function runOCR(dataURL) {
-            const worker = await Tesseract.createWorker({
-                logger: m => console.log(m)
-            });
-            await worker.loadLanguage('eng');
-            await worker.initialize('eng');
-            const { data } = await worker.recognize(dataURL);
-            await worker.terminate();
-            return data;
-        }
-
-        // Function to Process OCR Data and Group Words within Rectangles
-        function processOCRData(data) {
-            if (!data.words) return;
-
-            // For each OCR rectangle, find words within it
-            ocrRectangles.forEach(rect => {
-                const wordsInRect = data.words.filter(word => {
-                    // Corrected scaling factors for Y-coordinates
-                    const wordX = word.bbox.x0 * (uploadedImage.clientWidth / uploadedImage.naturalWidth);
-                    const wordY = word.bbox.y0 * (uploadedImage.clientHeight / uploadedImage.naturalHeight);
-                    const wordW = (word.bbox.x1 - word.bbox.x0) * (uploadedImage.clientWidth / uploadedImage.naturalWidth);
-                    const wordH = (word.bbox.y1 - word.bbox.y0) * (uploadedImage.clientHeight / uploadedImage.naturalHeight);
-                    return (
-                        wordX >= rect.x &&
-                        wordY >= rect.y &&
-                        (wordX + wordW) <= (rect.x + rect.width) &&
-                        (wordY + wordH) <= (rect.y + rect.height)
-                    );
-                });
-
-                if (wordsInRect.length > 0) {
-                    // Concatenate words to form a single string
-                    const sortedWords = wordsInRect.sort((a, b) => {
-                        if (a.bbox.y0 === b.bbox.y0) {
-                            return a.bbox.x0 - b.bbox.x0;
-                        }
-                        return a.bbox.y0 - b.bbox.y0;
-                    });
-                    const concatenatedText = sortedWords.map(w => w.text).join(' ');
-
-                    // Calculate the bounding box that encompasses all words
-                    const x0 = Math.min(...wordsInRect.map(w => w.bbox.x0));
-                    const y0 = Math.min(...wordsInRect.map(w => w.bbox.y0));
-                    const x1 = Math.max(...wordsInRect.map(w => w.bbox.x1));
-                    const y1 = Math.max(...wordsInRect.map(w => w.bbox.y1));
-
-                    const groupRect = {
-                        x: x0 * (uploadedImage.clientWidth / uploadedImage.naturalWidth),
-                        y: y0 * (uploadedImage.clientHeight / uploadedImage.naturalHeight),
-                        width: (x1 - x0) * (uploadedImage.clientWidth / uploadedImage.naturalWidth),
-                        height: (y1 - y0) * (uploadedImage.clientHeight / uploadedImage.naturalHeight),
-                        text: concatenatedText
-                    };
-
-                    wordGroups.push(groupRect);
-                }
-            });
-        }
-
-        // Function to Draw Word Groups
-        function drawWordGroups() {
-            redrawCanvas();
-        }
-
-        // Function to Assign Group Text to a Field
-        function assignGroupToField(text) {
-            const choice = prompt(
-                `Choose a field to assign this text:\n` +
-                `1) Item Name Short\n` +
-                `2) Item Name Long\n` +
-                `3) UPC\n` +
-                `4) Location\n` +
-                `5) Downstack\n` +
-                `6) Notes\n\n` +
-                `Enter a number 1-6:`
-            );
-            if (!choice) return;
-            const num = parseInt(choice, 10);
-            if (isNaN(num) || num < 1 || num > 6) {
-                alert('Invalid choice.');
-                return;
-            }
-
-            let targetField;
-            switch (num) {
-                case 1: targetField = field1; break;
-                case 2: targetField = field2; break;
-                case 3: targetField = field3; break;
-                case 4: targetField = field4; break;
-                case 5: targetField = field5; break;
-                case 6: targetField = field6; break;
-            }
-
-            targetField.value = text;
         }
 
         // Function to Perform Cropping
@@ -1302,8 +1244,8 @@
             uploadedImage.onload = () => {
                 adjustCanvas();
                 clearCanvas();
-                ocrRectangles = [];
-                wordGroups = [];
+                userRectangles = [];
+                rectangleTexts = {};
                 cropRect = null;
                 statusMessage.textContent = 'Image cropped successfully. You can now draw OCR rectangles.';
                 handlesVisible = true;
@@ -1357,7 +1299,7 @@
 
                 cropRect = normalizeRect(cropRect);
             } else if (typeof resizeTarget === 'number') {
-                const rect = ocrRectangles[resizeTarget];
+                const rect = userRectangles[resizeTarget];
                 if (!rect || !activeHandle) return;
 
                 switch (activeHandle) {
@@ -1397,7 +1339,7 @@
                         break;
                 }
 
-                ocrRectangles[resizeTarget] = normalizeRect(rect);
+                userRectangles[resizeTarget] = normalizeRect(rect);
             }
         }
 
@@ -1561,7 +1503,36 @@
         /* -------------------- End of Postprocessing Functions -------------------- */
 
         // Function to Assign Text to Fields
-        // Already handled via assignGroupToField
+        function assignTextToField(text) {
+            const choice = prompt(
+                `Choose a field to assign this text:\n` +
+                `1) Item Name Short\n` +
+                `2) Item Name Long\n` +
+                `3) UPC\n` +
+                `4) Location\n` +
+                `5) Downstack\n` +
+                `6) Notes\n\n` +
+                `Enter a number 1-6:`
+            );
+            if (!choice) return;
+            const num = parseInt(choice, 10);
+            if (isNaN(num) || num < 1 || num > 6) {
+                alert('Invalid choice.');
+                return;
+            }
+
+            let targetField;
+            switch (num) {
+                case 1: targetField = field1; break;
+                case 2: targetField = field2; break;
+                case 3: targetField = field3; break;
+                case 4: targetField = field4; break;
+                case 5: targetField = field5; break;
+                case 6: targetField = field6; break;
+            }
+
+            targetField.value = text;
+        }
 
         // Function to Perform OCR using the Postprocessed Image
         // Already updated imageDataURL to postprocessed image
