@@ -555,17 +555,16 @@
         document.addEventListener("DOMContentLoaded", () => {
             const hamburgerBtn = document.getElementById('hamburgerBtn');
 
-            // Function to update button position based on scroll
-            function updateButtonPosition() {
-                const scrollY = window.scrollY; // Current scroll position
-                //hamburgerBtn.style.top = `${scrollY + 20}px`; // 20px from the top of the viewport
+            // Function to set the button in a fixed position relative to the viewport
+            function setFixedButtonPosition() {
+                hamburgerBtn.style.position = 'fixed'; // Always stays relative to the viewport
+                hamburgerBtn.style.top = '20px'; // Neatly fixed 20px from the top of the viewport
+                hamburgerBtn.style.left = '20px'; // 20px from the left
+                hamburgerBtn.style.zIndex = '1100'; // Keeps it floating above other content
             }
 
-            // Listen for scroll events and adjust the button position dynamically
-            window.addEventListener("scroll", updateButtonPosition);
-
-            // Initial position adjustment when the page loads
-            updateButtonPosition();
+            // Apply the fixed positioning on DOMContentLoaded
+            setFixedButtonPosition();
         });
 
 
