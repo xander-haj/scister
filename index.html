@@ -151,10 +151,6 @@
 
         /* Hamburger Menu Button Styles */
         #hamburgerBtn {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            z-index: 1100;
             width: 50px;
             height: 50px;
             background-color: #333;
@@ -164,7 +160,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: background-color 0.3s;
+            transition: background-color 0.3s ease;
         }
 
         #hamburgerBtn:hover {
@@ -562,9 +558,6 @@
                 hamburgerBtn.style.left = '20px'; // 20px from the left
                 hamburgerBtn.style.zIndex = '1100'; // Keeps it floating above other content
             }
-
-            // Apply the fixed positioning on DOMContentLoaded
-            setFixedButtonPosition();
         });
 
 
