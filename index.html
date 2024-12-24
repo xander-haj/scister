@@ -659,12 +659,15 @@
         let isCroppingMode = false;
         let isDrawing = false;
         let isResizing = false;
+        let isMoving = false; // New variable for moving
         let activeHandle = null;
         let startX = 0;
         let startY = 0;
         let currentRect = null;
+        let moveOffset = { x: 0, y: 0 }; // Offset for moving
         let HANDLE_SIZE = 10;
-        const HANDLE_TYPES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+        // **Modified HANDLE_TYPES to only include 'sw' and 'ne'**
+        const HANDLE_TYPES = ['sw', 'ne'];
         let resizeTarget = null;
         let handlesVisible = true;
 
@@ -882,9 +885,25 @@
 
             const handleInfo = getHandleAt(x, y);
             if (handleInfo) {
-                isResizing = true;
-                activeHandle = handleInfo.type;
-                resizeTarget = handleInfo.rect === 'crop' ? 'crop' : handleInfo.index;
+                if (handleInfo.type === 'sw') {
+                    // Resizing
+                    isResizing = true;
+                    activeHandle = handleInfo.type;
+                    resizeTarget = handleInfo.rect === 'crop' ? 'crop' : handleInfo.index;
+                } else if (handleInfo.type === 'ne') {
+                    // Moving
+                    isMoving = true;
+                    resizeTarget = handleInfo.rect === 'crop' ? 'crop' : handleInfo.index;
+                    // Calculate offset
+                    if (resizeTarget === 'crop') {
+                        moveOffset.x = x - cropRect.x;
+                        moveOffset.y = y - cropRect.y;
+                    } else {
+                        const rectToMove = userRectangles[resizeTarget];
+                        moveOffset.x = x - rectToMove.x;
+                        moveOffset.y = y - rectToMove.y;
+                    }
+                }
                 return;
             }
 
@@ -907,6 +926,12 @@
                 return;
             }
 
+            if (isMoving) {
+                moveRectangle(x, y);
+                redrawCanvas();
+                return;
+            }
+
             if (isDrawing && currentRect) {
                 currentRect.width = x - startX;
                 currentRect.height = y - startY;
@@ -922,6 +947,13 @@
                 activeHandle = null;
                 resizeTarget = null;
                 statusMessage.textContent = 'Rectangle resized.';
+                return;
+            }
+
+            if (isMoving) {
+                isMoving = false;
+                resizeTarget = null;
+                statusMessage.textContent = 'Rectangle moved.';
                 return;
             }
 
@@ -958,9 +990,25 @@
 
             const handleInfo = getHandleAt(x, y);
             if (handleInfo) {
-                isResizing = true;
-                activeHandle = handleInfo.type;
-                resizeTarget = handleInfo.rect === 'crop' ? 'crop' : handleInfo.index;
+                if (handleInfo.type === 'sw') {
+                    // Resizing
+                    isResizing = true;
+                    activeHandle = handleInfo.type;
+                    resizeTarget = handleInfo.rect === 'crop' ? 'crop' : handleInfo.index;
+                } else if (handleInfo.type === 'ne') {
+                    // Moving
+                    isMoving = true;
+                    resizeTarget = handleInfo.rect === 'crop' ? 'crop' : handleInfo.index;
+                    // Calculate offset
+                    if (resizeTarget === 'crop') {
+                        moveOffset.x = x - cropRect.x;
+                        moveOffset.y = y - cropRect.y;
+                    } else {
+                        const rectToMove = userRectangles[resizeTarget];
+                        moveOffset.x = x - rectToMove.x;
+                        moveOffset.y = y - rectToMove.y;
+                    }
+                }
                 return;
             }
 
@@ -986,6 +1034,12 @@
                 return;
             }
 
+            if (isMoving) {
+                moveRectangle(x, y);
+                redrawCanvas();
+                return;
+            }
+
             if (isDrawing && currentRect) {
                 currentRect.width = x - startX;
                 currentRect.height = y - startY;
@@ -1001,6 +1055,13 @@
                 activeHandle = null;
                 resizeTarget = null;
                 statusMessage.textContent = 'Rectangle resized.';
+                return;
+            }
+
+            if (isMoving) {
+                isMoving = false;
+                resizeTarget = null;
+                statusMessage.textContent = 'Rectangle moved.';
                 return;
             }
 
@@ -1025,6 +1086,22 @@
                 redrawCanvas();
             }
         });
+
+        // **New Function: Move Rectangle**
+        function moveRectangle(x, y) {
+            if (resizeTarget === 'crop') {
+                if (!cropRect) return;
+                cropRect.x = x - moveOffset.x;
+                cropRect.y = y - moveOffset.y;
+                cropRect = normalizeRect(cropRect);
+            } else if (typeof resizeTarget === 'number') {
+                const rect = userRectangles[resizeTarget];
+                if (!rect) return;
+                rect.x = x - moveOffset.x;
+                rect.y = y - moveOffset.y;
+                userRectangles[resizeTarget] = normalizeRect(rect);
+            }
+        }
 
         // Perform OCR Button
         performOcrButton.addEventListener('click', async () => {
@@ -1250,28 +1327,23 @@
         // Function to Get Handle Positions Relative to the Rectangle
         function getHandlePositions(rect) {
             return {
-                nw: { x: rect.x, y: rect.y },
-                n: { x: rect.x + rect.width / 2, y: rect.y },
-                ne: { x: rect.x + rect.width, y: rect.y },
-                e: { x: rect.x + rect.width, y: rect.y + rect.height / 2 },
-                se: { x: rect.x + rect.width, y: rect.y + rect.height },
-                s: { x: rect.x + rect.width / 2, y: rect.y + rect.height },
-                sw: { x: rect.x, y: rect.y + rect.height },
-                w: { x: rect.x, y: rect.y + rect.height / 2 }
+                sw: { x: rect.x, y: rect.y + rect.height }, // Bottom-Left
+                ne: { x: rect.x + rect.width, y: rect.y }   // Top-Right
             };
         }
 
-        // Draw Resize Handles for a Rectangle
+        // Draw Resize and Move Handles for a Rectangle
         function drawHandles(rect, index) {
             const ctx = overlayCanvas.getContext('2d');
             const handles = getHandlePositions(rect);
             ctx.fillStyle = '#e0e0e0';
             ctx.strokeStyle = '#000';
-            for (let key of HANDLE_TYPES) {
+            // Draw only 'sw' and 'ne' handles
+            ['sw', 'ne'].forEach(key => {
                 const handle = handles[key];
                 ctx.fillRect(handle.x - HANDLE_SIZE / 2, handle.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
                 ctx.strokeRect(handle.x - HANDLE_SIZE / 2, handle.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
-            }
+            });
         }
 
         // Check if Point is Inside Any Handle of Any Rectangle
@@ -1380,39 +1452,9 @@
             if (resizeTarget === 'crop') {
                 if (!cropRect || !activeHandle) return;
                 switch (activeHandle) {
-                    case 'nw':
-                        cropRect.width += cropRect.x - x;
-                        cropRect.height += cropRect.y - y;
-                        cropRect.x = x;
-                        cropRect.y = y;
-                        break;
-                    case 'n':
-                        cropRect.height += cropRect.y - y;
-                        cropRect.y = y;
-                        break;
-                    case 'ne':
-                        cropRect.width = x - cropRect.x;
-                        cropRect.height += cropRect.y - y;
-                        cropRect.y = y;
-                        break;
-                    case 'e':
-                        cropRect.width = x - cropRect.x;
-                        break;
-                    case 'se':
-                        cropRect.width = x - cropRect.x;
-                        cropRect.height = y - cropRect.y;
-                        break;
-                    case 's':
-                        cropRect.height = y - cropRect.y;
-                        break;
                     case 'sw':
-                        cropRect.width += cropRect.x - x;
+                        cropRect.width = x - cropRect.x;
                         cropRect.height = y - cropRect.y;
-                        cropRect.x = x;
-                        break;
-                    case 'w':
-                        cropRect.width += cropRect.x - x;
-                        cropRect.x = x;
                         break;
                 }
 
@@ -1422,39 +1464,9 @@
                 if (!rect || !activeHandle) return;
 
                 switch (activeHandle) {
-                    case 'nw':
-                        rect.width += rect.x - x;
-                        rect.height += rect.y - y;
-                        rect.x = x;
-                        rect.y = y;
-                        break;
-                    case 'n':
-                        rect.height += rect.y - y;
-                        rect.y = y;
-                        break;
-                    case 'ne':
-                        rect.width = x - rect.x;
-                        rect.height += rect.y - y;
-                        rect.y = y;
-                        break;
-                    case 'e':
-                        rect.width = x - rect.x;
-                        break;
-                    case 'se':
-                        rect.width = x - rect.x;
-                        rect.height = y - rect.y;
-                        break;
-                    case 's':
-                        rect.height = y - rect.y;
-                        break;
                     case 'sw':
-                        rect.width += rect.x - x;
+                        rect.width = x - rect.x;
                         rect.height = y - rect.y;
-                        rect.x = x;
-                        break;
-                    case 'w':
-                        rect.width += rect.x - x;
-                        rect.x = x;
                         break;
                 }
 
