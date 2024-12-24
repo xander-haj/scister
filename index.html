@@ -613,7 +613,7 @@
         const postprocessingCanvas = document.getElementById('postprocessingCanvas');
         const statusMessage = document.getElementById('statusMessage');
         const dataTable = document.getElementById('dataTable').querySelector('tbody');
-
+    
         // Side Menu Buttons
         const drawButton = document.getElementById('draw-button');
         const undoDrawButton = document.getElementById('undo-draw-button');
@@ -623,7 +623,7 @@
         const clearImageButton = document.getElementById('clear-image-button');
         const updateTableButton = document.getElementById('update-table-button');
         const saveCsvButton = document.getElementById('save-csv-button');
-
+    
         // Postprocessing Controls
         const postprocessingButton = document.getElementById('postprocessing-button');
         const postprocessingControls = document.getElementById('postprocessing-controls');
@@ -632,7 +632,7 @@
         const claritySlider = document.getElementById('clarity');
         const brightnessSlider = document.getElementById('brightness');
         const sharpeningSlider = document.getElementById('sharpening');
-
+    
         // Input Fields
         const field1 = document.getElementById('field1');
         const field2 = document.getElementById('field2');
@@ -640,16 +640,16 @@
         const field4 = document.getElementById('field4');
         const field5 = document.getElementById('field5');
         const field6 = document.getElementById('field6');
-
+    
         // Hamburger Menu Button
         const hamburgerBtn = document.getElementById('hamburgerBtn');
         const sideMenu = document.getElementById('sideMenu');
-
+    
         // DOM Elements for Info Modal
         const infoButton = document.getElementById('info-button');
         const infoModal = document.getElementById('infoModal');
         const infoModalClose = document.getElementById('infoModalClose');
-
+    
         // State Variables
         let userRectangles = []; // Array to store user-drawn rectangles
         let rectangleTexts = {}; // Object to map rectangles to their OCR text
@@ -670,22 +670,23 @@
         const HANDLE_TYPES = ['sw', 'ne'];
         let resizeTarget = null;
         let handlesVisible = true;
-
+        let initialRect = null; // New variable to store the initial rectangle during resize
+    
         // Side Menu Toggle Function
         function toggleSideMenu() {
             sideMenu.classList.toggle('active');
         }
-
+    
         // Event Listener for Hamburger Button
         hamburgerBtn.addEventListener('click', toggleSideMenu);
-
+    
         // Close Side Menu on Escape Key
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && sideMenu.classList.contains('active')) {
                 sideMenu.classList.remove('active');
             }
         });
-
+    
         // Close Side Menu When Clicking Outside
         window.addEventListener('click', (e) => {
             if (!sideMenu.contains(e.target) && e.target !== hamburgerBtn) {
@@ -694,33 +695,33 @@
                 }
             }
         });
-
+    
         // Event Listener to Open Info Modal
         infoButton.addEventListener('click', () => {
             infoModal.style.display = 'block';
         });
-
+    
         // Event Listener to Close Info Modal when Close Button is Clicked
         infoModalClose.addEventListener('click', () => {
             infoModal.style.display = 'none';
         });
-
+    
         // Event Listener to Close Info Modal when Clicking Outside the Modal Content
         window.addEventListener('click', (event) => {
             if (event.target == infoModal) {
                 infoModal.style.display = 'none';
             }
         });
-
+    
         // Event Listener for Postprocessing Button to Toggle Controls
         postprocessingButton.addEventListener('click', () => {
             postprocessingControls.style.display = postprocessingControls.style.display === 'flex' ? 'none' : 'flex';
         });
-
+    
         // Adjust Canvas for High-DPI Displays and Responsive Sizing
         function adjustCanvas() {
             const ratio = window.devicePixelRatio || 1;
-
+    
             // Adjust postprocessingCanvas
             postprocessingCanvas.width = uploadedImage.clientWidth * ratio;
             postprocessingCanvas.height = uploadedImage.clientHeight * ratio;
@@ -728,7 +729,7 @@
             postprocessingCanvas.style.height = `${uploadedImage.clientHeight}px`;
             const ppCtx = postprocessingCanvas.getContext('2d');
             ppCtx.scale(ratio, ratio);
-
+    
             // Adjust overlayCanvas
             overlayCanvas.width = uploadedImage.clientWidth * ratio;
             overlayCanvas.height = uploadedImage.clientHeight * ratio;
@@ -736,11 +737,11 @@
             overlayCanvas.style.height = `${uploadedImage.clientHeight}px`;
             const ovCtx = overlayCanvas.getContext('2d');
             ovCtx.scale(ratio, ratio);
-
+    
             // After adjusting, redraw postprocessing
             applyPostprocessing();
         }
-
+    
         // Function to Update HANDLE_SIZE Based on Screen Width
         function updateHandleSize() {
             if (window.innerWidth <= 600) {
@@ -750,7 +751,7 @@
             }
             redrawCanvas();
         }
-
+    
         // Call updateHandleSize on Initial Load and on Window Resize
         window.addEventListener('load', () => {
             updateHandleSize();
@@ -762,7 +763,7 @@
             adjustCanvas();
             updateHandleSize();
         });
-
+    
         // Event Listener for Image Upload
         imageInput.addEventListener('change', () => {
             const file = imageInput.files[0];
@@ -777,7 +778,7 @@
                     imageContainer.style.display = 'block';
                     
                     adjustCanvas();
-
+    
                     clearCanvas();
                     statusMessage.textContent = 'Image loaded. You can crop or draw on the image.';
                     imageDataURL = e.target.result;
@@ -788,13 +789,13 @@
                     confirmCropButton.style.display = 'none';
                     undoDrawButton.style.display = 'none';
                     redrawCanvas();
-
+    
                     applyPostprocessing();
                 };
             };
             reader.readAsDataURL(file);
         });
-
+    
         // Event Listener for Draw Button
         drawButton.addEventListener('click', () => {
             if (!imageDataURL) {
@@ -822,7 +823,7 @@
                 redrawCanvas();
             }
         });
-
+    
         // Event Listener for Crop Button
         cropButton.addEventListener('click', () => {
             if (!imageDataURL) {
@@ -849,7 +850,7 @@
                 redrawCanvas();
             }
         });
-
+    
         // Event Listener for Confirm Crop Button
         confirmCropButton.addEventListener('click', () => {
             if (!cropRect) {
@@ -864,7 +865,7 @@
             handlesVisible = false;
             redrawCanvas();
         });
-
+    
         // Event Listener for Undo Draw Button
         undoDrawButton.addEventListener('click', () => {
             if (userRectangles.length === 0) {
@@ -876,13 +877,13 @@
             statusMessage.textContent = 'Last drawn rectangle has been removed.';
             undoDrawButton.style.display = userRectangles.length > 0 ? 'block' : 'none';
         });
-
+    
         // Mouse Events for Desktop Drawing/Cropping and Resizing
         overlayCanvas.addEventListener('mousedown', (e) => {
             const rect = overlayCanvas.getBoundingClientRect();
             const x = (e.clientX - rect.left);
             const y = (e.clientY - rect.top);
-
+    
             const handleInfo = getHandleAt(x, y);
             if (handleInfo) {
                 if (handleInfo.type === 'sw') {
@@ -890,6 +891,12 @@
                     isResizing = true;
                     activeHandle = handleInfo.type;
                     resizeTarget = handleInfo.rect === 'crop' ? 'crop' : handleInfo.index;
+                    // Store the initial rectangle state for proper resizing
+                    if (resizeTarget === 'crop') {
+                        initialRect = { ...cropRect };
+                    } else {
+                        initialRect = { ...userRectangles[resizeTarget] };
+                    }
                 } else if (handleInfo.type === 'ne') {
                     // Moving
                     isMoving = true;
@@ -906,7 +913,7 @@
                 }
                 return;
             }
-
+    
             if (isDrawingMode || (isCroppingMode && !cropRect)) {
                 isDrawing = true;
                 startX = x;
@@ -914,24 +921,24 @@
                 currentRect = { x: startX, y: startY, width: 0, height: 0 };
             }
         });
-
+    
         overlayCanvas.addEventListener('mousemove', (e) => {
             const rect = overlayCanvas.getBoundingClientRect();
             const x = (e.clientX - rect.left);
             const y = (e.clientY - rect.top);
-
+    
             if (isResizing) {
                 resizeRectangle(x, y);
                 redrawCanvas();
                 return;
             }
-
+    
             if (isMoving) {
                 moveRectangle(x, y);
                 redrawCanvas();
                 return;
             }
-
+    
             if (isDrawing && currentRect) {
                 currentRect.width = x - startX;
                 currentRect.height = y - startY;
@@ -940,23 +947,24 @@
                 drawRectangle(currentRect, style.fill, style.stroke);
             }
         });
-
+    
         overlayCanvas.addEventListener('mouseup', (e) => {
             if (isResizing) {
                 isResizing = false;
                 activeHandle = null;
                 resizeTarget = null;
+                initialRect = null; // Clear initial rectangle
                 statusMessage.textContent = 'Rectangle resized.';
                 return;
             }
-
+    
             if (isMoving) {
                 isMoving = false;
                 resizeTarget = null;
                 statusMessage.textContent = 'Rectangle moved.';
                 return;
             }
-
+    
             if (isDrawing && currentRect) {
                 isDrawing = false;
                 const normalizedRect = normalizeRect(currentRect);
@@ -978,7 +986,7 @@
                 redrawCanvas();
             }
         });
-
+    
         // Touch Events for Mobile Drawing/Cropping and Resizing
         overlayCanvas.addEventListener('touchstart', (e) => {
             if (!(isDrawingMode || isCroppingMode)) return;
@@ -987,7 +995,7 @@
             const rect = overlayCanvas.getBoundingClientRect();
             const x = (e.touches[0].clientX - rect.left);
             const y = (e.touches[0].clientY - rect.top);
-
+    
             const handleInfo = getHandleAt(x, y);
             if (handleInfo) {
                 if (handleInfo.type === 'sw') {
@@ -995,6 +1003,12 @@
                     isResizing = true;
                     activeHandle = handleInfo.type;
                     resizeTarget = handleInfo.rect === 'crop' ? 'crop' : handleInfo.index;
+                    // Store the initial rectangle state for proper resizing
+                    if (resizeTarget === 'crop') {
+                        initialRect = { ...cropRect };
+                    } else {
+                        initialRect = { ...userRectangles[resizeTarget] };
+                    }
                 } else if (handleInfo.type === 'ne') {
                     // Moving
                     isMoving = true;
@@ -1011,7 +1025,7 @@
                 }
                 return;
             }
-
+    
             if (isDrawingMode || (isCroppingMode && !cropRect)) {
                 isDrawing = true;
                 startX = x;
@@ -1019,7 +1033,7 @@
                 currentRect = { x: startX, y: startY, width: 0, height: 0 };
             }
         }, { passive: false });
-
+    
         overlayCanvas.addEventListener('touchmove', (e) => {
             if (!(isDrawingMode || isCroppingMode)) return;
             e.preventDefault();
@@ -1027,19 +1041,19 @@
             const rect = overlayCanvas.getBoundingClientRect();
             const x = (e.touches[0].clientX - rect.left);
             const y = (e.touches[0].clientY - rect.top);
-
+    
             if (isResizing) {
                 resizeRectangle(x, y);
                 redrawCanvas();
                 return;
             }
-
+    
             if (isMoving) {
                 moveRectangle(x, y);
                 redrawCanvas();
                 return;
             }
-
+    
             if (isDrawing && currentRect) {
                 currentRect.width = x - startX;
                 currentRect.height = y - startY;
@@ -1048,23 +1062,24 @@
                 drawRectangle(currentRect, style.fill, style.stroke);
             }
         }, { passive: false });
-
+    
         overlayCanvas.addEventListener('touchend', (e) => {
             if (isResizing) {
                 isResizing = false;
                 activeHandle = null;
                 resizeTarget = null;
+                initialRect = null; // Clear initial rectangle
                 statusMessage.textContent = 'Rectangle resized.';
                 return;
             }
-
+    
             if (isMoving) {
                 isMoving = false;
                 resizeTarget = null;
                 statusMessage.textContent = 'Rectangle moved.';
                 return;
             }
-
+    
             if (isDrawing && currentRect) {
                 isDrawing = false;
                 const normalizedRect = normalizeRect(currentRect);
@@ -1086,7 +1101,7 @@
                 redrawCanvas();
             }
         });
-
+    
         // **New Function: Move Rectangle**
         function moveRectangle(x, y) {
             if (resizeTarget === 'crop') {
@@ -1102,7 +1117,7 @@
                 userRectangles[resizeTarget] = normalizeRect(rect);
             }
         }
-
+    
         // Perform OCR Button
         performOcrButton.addEventListener('click', async () => {
             if (!imageDataURL) {
@@ -1113,52 +1128,52 @@
                 alert('Please draw at least one rectangle to select OCR areas.');
                 return;
             }
-
+    
             if (isDrawingMode) {
                 drawButton.click();
                 statusMessage.textContent = 'Drawing mode exited. Performing OCR... please wait.';
             } else {
                 statusMessage.textContent = 'Performing OCR... please wait.';
             }
-
+    
             clearCanvas();
             statusMessage.textContent = 'Performing OCR on selected areas...';
             rectangleTexts = {}; // Reset previous texts
-
+    
             for (let i = 0; i < userRectangles.length; i++) {
                 const rect = userRectangles[i];
                 const text = await performOCROnRectangle(rect);
                 rectangleTexts[i] = text; // Map text to rectangle index
             }
-
+    
             // **Added Line: Hide resize handles after OCR**
             handlesVisible = false;
-
+    
             statusMessage.textContent = 'OCR complete. Click on highlighted areas to assign fields.';
             redrawCanvas(); // Redraw rectangles in blue
         });
-
+    
         // Function to Perform OCR on a Specific Rectangle
         async function performOCROnRectangle(rect) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-
+    
             // Calculate scaling factors
             const scaleX = uploadedImage.naturalWidth / uploadedImage.clientWidth;
             const scaleY = uploadedImage.naturalHeight / uploadedImage.clientHeight;
-
+    
             // Define the crop area on the original image
             const cropX = rect.x * scaleX;
             const cropY = rect.y * scaleY;
             const cropWidth = rect.width * scaleX;
             const cropHeight = rect.height * scaleY;
-
+    
             canvas.width = cropWidth;
             canvas.height = cropHeight;
-
+    
             ctx.drawImage(uploadedImage, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
             const croppedDataURL = canvas.toDataURL();
-
+    
             // Perform OCR using Tesseract.js on the cropped image
             const worker = await Tesseract.createWorker({
                 logger: m => console.log(m)
@@ -1167,17 +1182,17 @@
             await worker.initialize('eng');
             const { data } = await worker.recognize(croppedDataURL);
             await worker.terminate();
-
+    
             return data.text.trim();
         }
-
+    
         // Handle Clicks on Highlighted Areas (Blue Rectangles)
         overlayCanvas.addEventListener('click', (e) => {
             if (userRectangles.length === 0) return;
             const rect = overlayCanvas.getBoundingClientRect();
             const x = (e.clientX - rect.left);
             const y = (e.clientY - rect.top);
-
+    
             // Iterate through all user rectangles to find if click is inside any
             for (let i = 0; i < userRectangles.length; i++) {
                 const r = userRectangles[i];
@@ -1192,19 +1207,19 @@
                 }
             }
         });
-
+    
         // Prevent Context Menu on Canvas
         overlayCanvas.addEventListener('contextmenu', (e) => {
             e.preventDefault();
         });
-
+    
         // Clear Image Button
         clearImageButton.addEventListener('click', () => {
             resetImageDisplay();
             resetFields();
             statusMessage.textContent = 'Cleared image and fields. Table is preserved. You can upload a new image.';
         });
-
+    
         // Update Table Button
         updateTableButton.addEventListener('click', () => {
             const row = document.createElement('tr');
@@ -1222,7 +1237,7 @@
             alert('Row added to the table.');
             resetFields();
         });
-
+    
         // Save CSV Button
         saveCsvButton.addEventListener('click', () => {
             const rows = dataTable.querySelectorAll('tr');
@@ -1232,13 +1247,13 @@
             }
             const headers = ["Item Name Short", "Item Name Long", "UPC", "Location", "Downstack", "Notes"];
             const data = [headers];
-
+    
             rows.forEach(r => {
                 const cells = r.querySelectorAll('td');
                 const rowData = Array.from(cells).map(cell => `"${cell.textContent.replace(/"/g, '""')}"`);
                 data.push(rowData);
             });
-
+    
             const csvContent = data.map(r => r.join(',')).join('\n');
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
@@ -1250,7 +1265,7 @@
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         });
-
+    
         // Function to Reset Image Display
         function resetImageDisplay() {
             uploadedImage.src = '';
@@ -1267,11 +1282,11 @@
             confirmCropButton.style.display = 'none';
             handlesVisible = true;
             undoDrawButton.style.display = 'none';
-
+    
             const ppCtx = postprocessingCanvas.getContext('2d');
             ppCtx.clearRect(0, 0, postprocessingCanvas.width, postprocessingCanvas.height);
         }
-
+    
         // Function to Reset Input Fields
         function resetFields() {
             field1.value = '';
@@ -1281,13 +1296,13 @@
             field5.value = '';
             field6.value = '';
         }
-
+    
         // Function to Clear Canvas
         function clearCanvas() {
             const ctx = overlayCanvas.getContext('2d');
             ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
         }
-
+    
         // Function to Redraw Canvas
         function redrawCanvas() {
             clearCanvas();
@@ -1313,7 +1328,7 @@
                 drawRectangle(currentRect, style.fill, style.stroke);
             }
         }
-
+    
         // Function to Draw a Rectangle
         function drawRectangle(rect, fillStyle, strokeStyle) {
             const ctx = overlayCanvas.getContext('2d');
@@ -1323,7 +1338,7 @@
             ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
             ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
         }
-
+    
         // Function to Get Handle Positions Relative to the Rectangle
         function getHandlePositions(rect) {
             return {
@@ -1331,7 +1346,7 @@
                 ne: { x: rect.x + rect.width, y: rect.y }   // Top-Right
             };
         }
-
+    
         // Draw Resize and Move Handles for a Rectangle
         function drawHandles(rect, index) {
             const ctx = overlayCanvas.getContext('2d');
@@ -1345,7 +1360,7 @@
                 ctx.strokeRect(handle.x - HANDLE_SIZE / 2, handle.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
             });
         }
-
+    
         // Check if Point is Inside Any Handle of Any Rectangle
         function getHandleAt(x, y) {
             // Check cropRect first
@@ -1363,7 +1378,7 @@
                     }
                 }
             }
-
+    
             // Check userRectangles
             for (let i = 0; i < userRectangles.length; i++) {
                 const rect = userRectangles[i];
@@ -1380,10 +1395,10 @@
                     }
                 }
             }
-
+    
             return null;
         }
-
+    
         // Function to Normalize Rectangle
         function normalizeRect(rect) {
             let { x, y, width, height } = rect;
@@ -1402,32 +1417,32 @@
             height = Math.min(height, uploadedImage.clientHeight - y);
             return { x, y, width, height };
         }
-
+    
         // Function to Perform Cropping
         function performCrop(rect) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-
+    
             // Calculate scaling factors
             const scaleX = uploadedImage.naturalWidth / uploadedImage.clientWidth;
             const scaleY = uploadedImage.naturalHeight / uploadedImage.clientHeight;
-
+    
             // Define the crop area on the original image
             const cropX = rect.x * scaleX;
             const cropY = rect.y * scaleY;
             const cropWidth = rect.width * scaleX;
             const cropHeight = rect.height * scaleY;
-
+    
             canvas.width = cropWidth;
             canvas.height = cropHeight;
-
+    
             ctx.drawImage(uploadedImage, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
             const croppedDataURL = canvas.toDataURL();
-
+    
             // Update the image source
             uploadedImage.src = croppedDataURL;
             imageDataURL = croppedDataURL;
-
+    
             // Adjust canvas for the new image size
             uploadedImage.onload = () => {
                 adjustCanvas();
@@ -1439,78 +1454,96 @@
                 handlesVisible = true;
                 undoDrawButton.style.display = 'none';
                 redrawCanvas();
-
+    
                 applyPostprocessing();
             };
         }
-
+    
         // Function to Resize Rectangle
         function resizeRectangle(x, y) {
-             // **Added Condition: Prevent resizing if OCR has been performed**
+            // **Added Condition: Prevent resizing if OCR has been performed**
             if (!handlesVisible) return;
-
+    
             if (resizeTarget === 'crop') {
-                if (!cropRect || !activeHandle) return;
+                if (!cropRect || !activeHandle || !initialRect) return;
                 switch (activeHandle) {
                     case 'sw':
-                        cropRect.width = x - cropRect.x;
-                        cropRect.height = y - cropRect.y;
+                        // Calculate new x and y based on mouse movement
+                        const newX = x;
+                        const newY = y;
+                        const newWidth = initialRect.width + (initialRect.x - newX);
+                        const newHeight = initialRect.height + (initialRect.y - newY);
+                        if (newWidth > 20 && newHeight > 20) { // Minimum size constraint
+                            cropRect.x = newX;
+                            cropRect.y = newY;
+                            cropRect.width = newWidth;
+                            cropRect.height = newHeight;
+                        }
                         break;
                 }
-
+    
                 cropRect = normalizeRect(cropRect);
             } else if (typeof resizeTarget === 'number') {
                 const rect = userRectangles[resizeTarget];
-                if (!rect || !activeHandle) return;
-
+                if (!rect || !activeHandle || !initialRect) return;
+    
                 switch (activeHandle) {
                     case 'sw':
-                        rect.width = x - rect.x;
-                        rect.height = y - rect.y;
+                        // Calculate new x and y based on mouse movement
+                        const newX = x;
+                        const newY = y;
+                        const newWidth = initialRect.width + (initialRect.x - newX);
+                        const newHeight = initialRect.height + (initialRect.y - newY);
+                        if (newWidth > 20 && newHeight > 20) { // Minimum size constraint
+                            rect.x = newX;
+                            rect.y = newY;
+                            rect.width = newWidth;
+                            rect.height = newHeight;
+                        }
                         break;
                 }
-
+    
                 userRectangles[resizeTarget] = normalizeRect(rect);
             }
         }
-
+    
         // Prevent Scrolling When Touching the Canvas in Draw or Crop Mode
         document.body.addEventListener('touchstart', function(e) {
             if ((isDrawingMode || isCroppingMode) && e.target === overlayCanvas) {
                 e.preventDefault();
             }
         }, { passive: false });
-
+    
         document.body.addEventListener('touchend', function(e) {
             if ((isDrawingMode || isCroppingMode) && e.target === overlayCanvas) {
                 e.preventDefault();
             }
         }, { passive: false });
-
+    
         document.body.addEventListener('touchmove', function(e) {
             if ((isDrawingMode || isCroppingMode) && e.target === overlayCanvas) {
                 e.preventDefault();
             }
         }, { passive: false });
-
+    
         /* -------------------- Postprocessing Functions -------------------- */
-
+    
         // Function to Apply Postprocessing Effects
         function applyPostprocessing() {
             if (!uploadedImage.src) return;
-
+    
             const ppCtx = postprocessingCanvas.getContext('2d');
-
+    
             // Clear Postprocessing Canvas
             ppCtx.clearRect(0, 0, postprocessingCanvas.width, postprocessingCanvas.height);
-
+    
             // Draw the uploaded image onto Postprocessing Canvas
             ppCtx.drawImage(uploadedImage, 0, 0, uploadedImage.clientWidth, uploadedImage.clientHeight);
-
+    
             // Get ImageData
             let imageData = ppCtx.getImageData(0, 0, postprocessingCanvas.width, postprocessingCanvas.height);
             let data = imageData.data;
-
+    
             // Apply Grayscale
             if (grayscaleCheckbox.checked) {
                 for (let i = 0; i < data.length; i += 4) {
@@ -1518,7 +1551,7 @@
                     data[i] = data[i + 1] = data[i + 2] = avg;
                 }
             }
-
+    
             // Apply Brightness
             const brightnessValue = parseInt(brightnessSlider.value, 10);
             if (brightnessValue !== 0) {
@@ -1529,7 +1562,7 @@
                     data[i + 2] += factor;
                 }
             }
-
+    
             // Apply Clarity (Contrast Adjustment)
             const clarityValue = parseInt(claritySlider.value, 10);
             if (clarityValue !== 50) {
@@ -1540,7 +1573,7 @@
                     data[i + 2] = ((data[i + 2] - 128) * contrast) + 128;
                 }
             }
-
+    
             // Apply Highlight (Additional Brightness)
             const highlightValue = parseInt(highlightSlider.value, 10);
             if (highlightValue !== 0) {
@@ -1553,47 +1586,47 @@
                     }
                 }
             }
-
+    
             // Put modified data back
             ppCtx.putImageData(imageData, 0, 0);
-
+    
             // Apply Sharpening
             const sharpeningValue = parseInt(sharpeningSlider.value, 10);
             if (sharpeningValue > 0) {
                 applySharpeningFilter(ppCtx, sharpeningValue / 100);
             }
-
+    
             // Update imageDataURL to use the postprocessed image
             imageDataURL = postprocessingCanvas.toDataURL();
-
+    
             // Redraw overlayCanvas
             redrawCanvas();
         }
-
+    
         // Function to Apply Sharpening Filter
         function applySharpeningFilter(ctx, intensity) {
             const imageData = ctx.getImageData(0, 0, postprocessingCanvas.width, postprocessingCanvas.height);
             const data = imageData.data;
             const width = imageData.width;
             const height = imageData.height;
-
+    
             // Simple sharpening kernel
             const kernel = [
                 0, -1, 0,
                 -1, 5, -1,
                 0, -1, 0
             ];
-
+    
             const side = Math.round(Math.sqrt(kernel.length));
             const halfSide = Math.floor(side / 2);
-
+    
             const src = data;
             const sw = width;
             const sh = height;
             const w = sw;
             const h = sh;
             const output = new Uint8ClampedArray(src.length);
-
+    
             for (let y = 0; y < h; y++) {
                 for (let x = 0; x < w; x++) {
                     let r = 0, g = 0, b = 0;
@@ -1616,23 +1649,23 @@
                     output[dstOffset + 3] = src[dstOffset + 3];
                 }
             }
-
+    
             // Put the sharpened data back
             for (let i = 0; i < data.length; i++) {
                 data[i] = output[i];
             }
             ctx.putImageData(imageData, 0, 0);
         }
-
+    
         // Event Listeners for Postprocessing Controls
         grayscaleCheckbox.addEventListener('change', applyPostprocessing);
         highlightSlider.addEventListener('input', applyPostprocessing);
         claritySlider.addEventListener('input', applyPostprocessing);
         brightnessSlider.addEventListener('input', applyPostprocessing);
         sharpeningSlider.addEventListener('input', applyPostprocessing);
-
+    
         /* -------------------- End of Postprocessing Functions -------------------- */
-
+    
         // Function to Assign Text to Fields
         function assignTextToField(text) {
             const choice = prompt(
@@ -1651,7 +1684,7 @@
                 alert('Invalid choice.');
                 return;
             }
-
+    
             let targetField;
             switch (num) {
                 case 1: targetField = field1; break;
@@ -1661,20 +1694,21 @@
                 case 5: targetField = field5; break;
                 case 6: targetField = field6; break;
             }
-
+    
             targetField.value = text;
         }
-
+    
         // Function to Perform OCR using the Postprocessed Image
         // Already updated imageDataURL to postprocessed image
-
+    
         /* -------------------- Postprocessing Integration -------------------- */
-
+    
         // Function to Apply Postprocessing Effects (Defined Above)
         // Already implemented above
-
+    
         /* -------------------- End of Postprocessing Integration -------------------- */
-
+    
     </script>
+    
 </body>
 </html>
