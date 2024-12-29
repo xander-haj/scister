@@ -178,7 +178,7 @@
             transform: translateY(-2px);
         }
 
-        /* Image Container */
+        /* Image Container inside Modal */
         #editorImageContainer {
             position: relative;
             width: 100%;
@@ -187,7 +187,7 @@
             overflow: hidden;
         }
 
-        #uploadedImage {
+        #uploadedImageModal {
             width: 100%;
             height: auto;
             border: 2px solid #333;
@@ -196,7 +196,7 @@
         }
 
         /* Canvas Styles */
-        #postprocessingCanvas, #overlayCanvas {
+        #postprocessingCanvasModal, #overlayCanvasModal {
             position: absolute;
             top: 0;
             left: 0;
@@ -205,12 +205,12 @@
             height: 100%;
         }
 
-        #postprocessingCanvas {
+        #postprocessingCanvasModal {
             z-index: 5;
             pointer-events: none;
         }
 
-        #overlayCanvas {
+        #overlayCanvasModal {
             z-index: 10;
             pointer-events: auto;
         }
@@ -431,12 +431,6 @@
             <label for="imageInput">Upload Image:</label>
             <input type="file" id="imageInput" accept="image/*">
             <button id="openEditorBtn">Open Editor</button>
-            <div id="imageContainer" style="display:none;">
-                <img id="uploadedImage" alt="Uploaded Image">
-                <!-- Postprocessing Canvas -->
-                <canvas id="postprocessingCanvas"></canvas>
-                <canvas id="overlayCanvas"></canvas>
-            </div>
             <p id="statusMessage"></p>
         </div>
 
@@ -541,8 +535,7 @@
     <script>
         // DOM Elements
         const imageInput = document.getElementById('imageInput');
-        const uploadedImage = document.getElementById('uploadedImage');
-        const imageContainer = document.getElementById('imageContainer');
+        const openEditorBtn = document.getElementById('openEditorBtn');
         const statusMessage = document.getElementById('statusMessage');
         const dataTable = document.getElementById('dataTable').querySelector('tbody');
 
@@ -577,9 +570,6 @@
         const postprocessingCanvasModal = document.getElementById('postprocessingCanvasModal');
         const overlayCanvasModal = document.getElementById('overlayCanvasModal');
 
-        // Open Editor Button
-        const openEditorBtn = document.getElementById('openEditorBtn');
-
         // Info Modal Elements
         const infoModal = document.getElementById('infoModal');
         const infoModalClose = document.getElementById('infoModalClose');
@@ -601,30 +591,35 @@
         let isCroppingMode = false;
         let isDrawing = false;
         let isResizing = false;
-        let isMoving = false; // New variable for moving
+        let isMoving = false; // Variable for moving
         let activeHandle = null;
         let startX = 0;
         let startY = 0;
         let currentRect = null;
         let moveOffset = { x: 0, y: 0 }; // Offset for moving
         let HANDLE_SIZE = 10;
-        // HANDLE_TYPES now include all 8 directions handled by a single resize anchor
         const HANDLE_TYPES = ['sw', 'se', 'nw', 'ne', 'w', 'e', 'n', 's'];
         let resizeTarget = null;
         let handlesVisible = true;
-        let initialRect = null; // New variable to store the initial rectangle during resize
+        let initialRect = null; // Store the initial rectangle during resize
 
-        // Function to Show Editor Modal
+        // Open Editor Modal
         function openEditorModal() {
+            if (!imageDataURL) {
+                alert('Please upload an image first.');
+                return;
+            }
             editorModal.style.display = 'block';
             editorImageContainer.style.display = 'block';
-            uploadedImageModal.src = uploadedImage.src;
-            adjustCanvasModal();
-            applyPostprocessingModal();
-            redrawCanvasModal();
+            uploadedImageModal.src = imageDataURL;
+            uploadedImageModal.onload = () => {
+                adjustCanvasModal();
+                applyPostprocessingModal();
+                redrawCanvasModal();
+            };
         }
 
-        // Function to Close Editor Modal
+        // Close Editor Modal
         function closeEditorModal() {
             editorModal.style.display = 'none';
             userRectangles = [];
@@ -641,11 +636,18 @@
             statusMessage.textContent = 'Editor closed.';
         }
 
+        // Event Listener for Open Editor Button
+        openEditorBtn.addEventListener('click', openEditorModal);
+
         // Event Listener for Close Editor Modal
         editorModalClose.addEventListener('click', closeEditorModal);
 
-        // Event Listener to Open Editor Modal when Open Editor Button is Clicked
-        openEditorBtn.addEventListener('click', openEditorModal);
+        // Event Listener to Open Editor Modal when Clicking Outside Content
+        editorModal.addEventListener('click', (e) => {
+            if (e.target === editorModal) {
+                closeEditorModal();
+            }
+        });
 
         // Event Listener for Image Upload
         imageInput.addEventListener('change', () => {
@@ -656,57 +658,24 @@
             }
             const reader = new FileReader();
             reader.onload = function(e) {
-                uploadedImage.src = e.target.result;
-                uploadedImageModal.src = e.target.result;
-                uploadedImage.onload = () => {
-                    imageContainer.style.display = 'block';
-                    editorImageContainer.style.display = 'block';
-                    
-                    adjustCanvas();
-                    adjustCanvasModal();
-
-                    clearCanvas();
-                    clearCanvasModal();
-                    statusMessage.textContent = 'Image loaded. You can open the editor to perform actions.';
-                    imageDataURL = e.target.result;
-                    userRectangles = [];
-                    rectangleTexts = {};
-                    cropRect = null;
-                    handlesVisible = true;
-                    confirmCropButton.style.display = 'none';
-                    undoDrawButton.style.display = 'none';
-                    redrawCanvas();
-                    redrawCanvasModal();
-
-                    applyPostprocessing();
-                    applyPostprocessingModal();
-
-                    // Show Open Editor Button
-                    openEditorBtn.style.display = 'block';
-                };
+                imageDataURL = e.target.result;
+                statusMessage.textContent = 'Image loaded. Click "Open Editor" to start editing.';
+                openEditorBtn.style.display = 'block';
             };
             reader.readAsDataURL(file);
         });
 
-        // Open Editor Button initially hidden, shown after image upload
-        openEditorBtn.style.display = 'none';
-
-        // Editor Modal Event Listeners
-        editorModal.addEventListener('click', (e) => {
-            if (e.target === editorModal) {
-                closeEditorModal();
-            }
-        });
-
-        // Info Modal Event Listeners
+        // Event Listener for Info Button
         infoButton.addEventListener('click', () => {
             infoModal.style.display = 'block';
         });
 
+        // Event Listener for Close Info Modal
         infoModalClose.addEventListener('click', () => {
             infoModal.style.display = 'none';
         });
 
+        // Close Info Modal when Clicking Outside Content
         window.addEventListener('click', (event) => {
             if (event.target == infoModal) {
                 infoModal.style.display = 'none';
@@ -718,31 +687,7 @@
             postprocessingControls.style.display = postprocessingControls.style.display === 'flex' ? 'none' : 'flex';
         });
 
-        // Adjust Canvas for High-DPI Displays and Responsive Sizing (Main)
-        function adjustCanvas() {
-            const ratio = window.devicePixelRatio || 1;
-
-            // Adjust postprocessingCanvas
-            postprocessingCanvas.width = uploadedImage.clientWidth * ratio;
-            postprocessingCanvas.height = uploadedImage.clientHeight * ratio;
-            postprocessingCanvas.style.width = `${uploadedImage.clientWidth}px`;
-            postprocessingCanvas.style.height = `${uploadedImage.clientHeight}px`;
-            const ppCtx = postprocessingCanvas.getContext('2d');
-            ppCtx.scale(ratio, ratio);
-
-            // Adjust overlayCanvas
-            overlayCanvas.width = uploadedImage.clientWidth * ratio;
-            overlayCanvas.height = uploadedImage.clientHeight * ratio;
-            overlayCanvas.style.width = `${uploadedImage.clientWidth}px`;
-            overlayCanvas.style.height = `${uploadedImage.clientHeight}px`;
-            const ovCtx = overlayCanvas.getContext('2d');
-            ovCtx.scale(ratio, ratio);
-
-            // After adjusting, redraw postprocessing
-            applyPostprocessing();
-        }
-
-        // Adjust Canvas for Modal
+        // Adjust Canvas for High-DPI Displays and Responsive Sizing (Modal)
         function adjustCanvasModal() {
             const ratio = window.devicePixelRatio || 1;
 
@@ -761,9 +706,6 @@
             overlayCanvasModal.style.height = `${uploadedImageModal.clientHeight}px`;
             const ovCtx = overlayCanvasModal.getContext('2d');
             ovCtx.scale(ratio, ratio);
-
-            // After adjusting, redraw postprocessing
-            applyPostprocessingModal();
         }
 
         // Function to Update HANDLE_SIZE Based on Screen Width
@@ -773,19 +715,17 @@
             } else {
                 HANDLE_SIZE = 10;
             }
-            redrawCanvas();
             redrawCanvasModal();
         }
 
         // Call updateHandleSize on Initial Load and on Window Resize
         window.addEventListener('load', () => {
             updateHandleSize();
-            if (uploadedImage.complete && uploadedImage.naturalWidth !== 0) {
-                applyPostprocessing();
+            if (uploadedImageModal.complete && uploadedImageModal.naturalWidth !== 0) {
+                applyPostprocessingModal();
             }
         });
         window.addEventListener('resize', () => {
-            adjustCanvas();
             adjustCanvasModal();
             updateHandleSize();
         });
@@ -804,18 +744,16 @@
             isDrawingMode = !isDrawingMode;
             if (isDrawingMode) {
                 drawButton.textContent = 'Cancel Draw';
-                statusMessage.textContent = 'Draw mode activated. Tap and drag on the image to draw rectangles for OCR.';
+                statusMessage.textContent = 'Draw mode activated. Click and drag on the image to draw rectangles for OCR.';
                 cropRect = null;
                 confirmCropButton.style.display = 'none';
                 handlesVisible = true;
                 undoDrawButton.style.display = userRectangles.length > 0 ? 'block' : 'none';
-                redrawCanvas();
                 redrawCanvasModal();
             } else {
                 drawButton.textContent = 'Draw';
                 statusMessage.textContent = 'Draw mode deactivated.';
                 currentRect = null;
-                redrawCanvas();
                 redrawCanvasModal();
             }
         });
@@ -833,18 +771,16 @@
             isCroppingMode = !isCroppingMode;
             if (isCroppingMode) {
                 cropButton.textContent = 'Cancel Crop';
-                statusMessage.textContent = 'Crop mode activated. Tap and drag on the image to select the crop area.';
+                statusMessage.textContent = 'Crop mode activated. Click and drag on the image to select the crop area.';
                 cropRect = null;
                 confirmCropButton.style.display = 'none';
                 handlesVisible = true;
-                redrawCanvas();
                 redrawCanvasModal();
             } else {
                 cropButton.textContent = 'Crop';
                 statusMessage.textContent = 'Crop mode deactivated.';
                 currentRect = null;
                 confirmCropButton.style.display = 'none';
-                redrawCanvas();
                 redrawCanvasModal();
             }
         });
@@ -861,7 +797,6 @@
             confirmCropButton.style.display = 'none';
             statusMessage.textContent = 'Image cropped successfully.';
             handlesVisible = false;
-            redrawCanvas();
             redrawCanvasModal();
         });
 
@@ -872,254 +807,12 @@
                 return;
             }
             userRectangles.pop();
-            redrawCanvas();
             redrawCanvasModal();
             statusMessage.textContent = 'Last drawn rectangle has been removed.';
             undoDrawButton.style.display = userRectangles.length > 0 ? 'block' : 'none';
         });
 
-        // Mouse Events for Desktop Drawing/Cropping and Resizing (Main)
-        overlayCanvas.addEventListener('mousedown', (e) => {
-            const rect = overlayCanvas.getBoundingClientRect();
-            const x = (e.clientX - rect.left);
-            const y = (e.clientY - rect.top);
-
-            const handleInfo = getHandleAt(x, y);
-            if (handleInfo) {
-                if (handleInfo.type === 'resize') {
-                    // Resizing
-                    isResizing = true;
-                    activeHandle = 'resize';
-                    resizeTarget = handleInfo.index;
-                    // Store the initial rectangle state for proper resizing
-                    if (resizeTarget === 'crop') {
-                        initialRect = { ...cropRect };
-                    } else {
-                        initialRect = { ...userRectangles[resizeTarget] };
-                    }
-                } else if (handleInfo.type === 'move') {
-                    // Moving
-                    isMoving = true;
-                    resizeTarget = handleInfo.index;
-                    // Calculate offset
-                    if (resizeTarget === 'crop') {
-                        moveOffset.x = x - cropRect.x;
-                        moveOffset.y = y - cropRect.y;
-                    } else {
-                        const rectToMove = userRectangles[resizeTarget];
-                        moveOffset.x = x - rectToMove.x;
-                        moveOffset.y = y - rectToMove.y;
-                    }
-                }
-                return;
-            }
-
-            if (isDrawingMode || (isCroppingMode && !cropRect)) {
-                isDrawing = true;
-                startX = x;
-                startY = y;
-                currentRect = { x: startX, y: startY, width: 0, height: 0 };
-            }
-        });
-
-        overlayCanvas.addEventListener('mousemove', (e) => {
-            const rect = overlayCanvas.getBoundingClientRect();
-            const x = (e.clientX - rect.left);
-            const y = (e.clientY - rect.top);
-
-            if (isResizing) {
-                resizeRectangle(x, y);
-                redrawCanvas();
-                redrawCanvasModal();
-                return;
-            }
-
-            if (isMoving) {
-                moveRectangle(x, y);
-                redrawCanvas();
-                redrawCanvasModal();
-                return;
-            }
-
-            if (isDrawing && currentRect) {
-                currentRect.width = x - startX;
-                currentRect.height = y - startY;
-                redrawCanvas();
-                redrawCanvasModal();
-                const style = isDrawingMode ? { fill: 'rgba(255, 0, 0, 0.3)', stroke: 'red' } : { fill: 'rgba(0, 150, 255, 0.25)', stroke: 'rgba(0, 150, 255, 1)' };
-                drawRectangle(currentRect, style.fill, style.stroke, overlayCanvas);
-                drawRectangle(currentRect, style.fill, style.stroke, overlayCanvasModal);
-            }
-        });
-
-        overlayCanvas.addEventListener('mouseup', (e) => {
-            if (isResizing) {
-                isResizing = false;
-                activeHandle = null;
-                resizeTarget = null;
-                initialRect = null; // Clear initial rectangle
-                statusMessage.textContent = 'Rectangle resized.';
-                return;
-            }
-
-            if (isMoving) {
-                isMoving = false;
-                resizeTarget = null;
-                statusMessage.textContent = 'Rectangle moved.';
-                return;
-            }
-
-            if (isDrawing && currentRect) {
-                isDrawing = false;
-                const normalizedRect = normalizeRect(currentRect);
-                if (isDrawingMode) {
-                    userRectangles.push(normalizedRect);
-                    statusMessage.textContent = `${userRectangles.length} OCR rectangle(s) drawn.`;
-                    undoDrawButton.style.display = userRectangles.length > 0 ? 'block' : 'none';
-                } else if (isCroppingMode) {
-                    if (cropRect) {
-                        cropRect = normalizedRect;
-                        statusMessage.textContent = 'Crop rectangle updated. You can resize or confirm the crop.';
-                    } else {
-                        cropRect = normalizedRect;
-                        statusMessage.textContent = 'Crop rectangle drawn. You can resize it using the handle or confirm the crop.';
-                    }
-                    confirmCropButton.style.display = 'block';
-                }
-                currentRect = null;
-                redrawCanvas();
-                redrawCanvasModal();
-            }
-        });
-
-        // Touch Events for Mobile Drawing/Cropping and Resizing (Main)
-        overlayCanvas.addEventListener('touchstart', (e) => {
-            if (!(isDrawingMode || isCroppingMode)) return;
-            e.preventDefault();
-            if (e.touches.length !== 1) return;
-            const rect = overlayCanvas.getBoundingClientRect();
-            const x = (e.touches[0].clientX - rect.left);
-            const y = (e.touches[0].clientY - rect.top);
-
-            const handleInfo = getHandleAt(x, y);
-            if (handleInfo) {
-                if (handleInfo.type === 'resize') {
-                    // Resizing
-                    isResizing = true;
-                    activeHandle = 'resize';
-                    resizeTarget = handleInfo.index;
-                    // Store the initial rectangle state for proper resizing
-                    if (resizeTarget === 'crop') {
-                        initialRect = { ...cropRect };
-                    } else {
-                        initialRect = { ...userRectangles[resizeTarget] };
-                    }
-                } else if (handleInfo.type === 'move') {
-                    // Moving
-                    isMoving = true;
-                    resizeTarget = handleInfo.index;
-                    // Calculate offset
-                    if (resizeTarget === 'crop') {
-                        moveOffset.x = x - cropRect.x;
-                        moveOffset.y = y - cropRect.y;
-                    } else {
-                        const rectToMove = userRectangles[resizeTarget];
-                        moveOffset.x = x - rectToMove.x;
-                        moveOffset.y = y - rectToMove.y;
-                    }
-                }
-                return;
-            }
-
-            if (isDrawingMode || (isCroppingMode && !cropRect)) {
-                isDrawing = true;
-                startX = x;
-                startY = y;
-                currentRect = { x: startX, y: startY, width: 0, height: 0 };
-            }
-        }, { passive: false });
-
-        overlayCanvas.addEventListener('touchmove', (e) => {
-            if (!(isDrawingMode || isCroppingMode)) return;
-            e.preventDefault();
-            if (e.touches.length !== 1) return;
-            const rect = overlayCanvas.getBoundingClientRect();
-            const x = (e.touches[0].clientX - rect.left);
-            const y = (e.touches[0].clientY - rect.top);
-
-            if (isResizing) {
-                resizeRectangle(x, y);
-                redrawCanvas();
-                redrawCanvasModal();
-                return;
-            }
-
-            if (isMoving) {
-                moveRectangle(x, y);
-                redrawCanvas();
-                redrawCanvasModal();
-                return;
-            }
-
-            if (isDrawing && currentRect) {
-                currentRect.width = x - startX;
-                currentRect.height = y - startY;
-                redrawCanvas();
-                redrawCanvasModal();
-                const style = isDrawingMode ? { fill: 'rgba(255, 0, 0, 0.3)', stroke: 'red' } : { fill: 'rgba(0, 150, 255, 0.25)', stroke: 'rgba(0, 150, 255, 1)' };
-                drawRectangle(currentRect, style.fill, style.stroke, overlayCanvas);
-                drawRectangle(currentRect, style.fill, style.stroke, overlayCanvasModal);
-            }
-        }, { passive: false });
-
-        overlayCanvas.addEventListener('touchend', (e) => {
-            if (isResizing) {
-                isResizing = false;
-                activeHandle = null;
-                resizeTarget = null;
-                initialRect = null; // Clear initial rectangle
-                statusMessage.textContent = 'Rectangle resized.';
-                return;
-            }
-
-            if (isMoving) {
-                isMoving = false;
-                resizeTarget = null;
-                statusMessage.textContent = 'Rectangle moved.';
-                return;
-            }
-
-            if (isDrawing && currentRect) {
-                isDrawing = false;
-                const normalizedRect = normalizeRect(currentRect);
-                if (isDrawingMode) {
-                    userRectangles.push(normalizedRect);
-                    statusMessage.textContent = `${userRectangles.length} OCR rectangle(s) drawn.`;
-                    undoDrawButton.style.display = userRectangles.length > 0 ? 'block' : 'none';
-                } else if (isCroppingMode) {
-                    if (cropRect) {
-                        cropRect = normalizedRect;
-                        statusMessage.textContent = 'Crop rectangle updated. You can resize or confirm the crop.';
-                    } else {
-                        cropRect = normalizedRect;
-                        statusMessage.textContent = 'Crop rectangle drawn. You can resize it using the handle or confirm the crop.';
-                    }
-                    confirmCropButton.style.display = 'block';
-                }
-                currentRect = null;
-                redrawCanvas();
-                redrawCanvasModal();
-            }
-        });
-
-        /* -------------------- Editor Modal Canvas Elements -------------------- */
-        // Editor Canvas Elements
-        const editorPostprocessingCanvasCtx = postprocessingCanvasModal.getContext('2d');
-        const editorOverlayCanvasCtx = overlayCanvasModal.getContext('2d');
-
-        /* -------------------- Drawing and Cropping Logic -------------------- */
-
-        // Mouse Events for Desktop in Modal
+        // Mouse Events for Desktop Drawing/Cropping and Resizing
         overlayCanvasModal.addEventListener('mousedown', (e) => {
             const rect = overlayCanvasModal.getBoundingClientRect();
             const x = (e.clientX - rect.left);
@@ -1228,7 +921,7 @@
             }
         });
 
-        // Touch Events for Mobile in Modal
+        // Touch Events for Mobile Drawing/Cropping and Resizing
         overlayCanvasModal.addEventListener('touchstart', (e) => {
             if (!(isDrawingMode || isCroppingMode)) return;
             e.preventDefault();
@@ -1343,7 +1036,7 @@
             }
         });
 
-        /* -------------------- OCR and Drawing Functions -------------------- */
+        /* -------------------- OCR and Drawing Logic -------------------- */
 
         // Perform OCR Button
         performOcrButton.addEventListener('click', async () => {
@@ -1445,7 +1138,9 @@
         clearImageButton.addEventListener('click', () => {
             resetImageDisplay();
             resetFields();
-            statusMessage.textContent = 'Cleared image and fields. Table is preserved. You can upload a new image.';
+            statusMessage.textContent = 'Cleared image and fields. You can upload a new image.';
+            editorModal.style.display = 'none';
+            openEditorBtn.style.display = 'none';
         });
 
         // Update Table Button
@@ -1496,28 +1191,10 @@
 
         // Function to Reset Image Display
         function resetImageDisplay() {
-            uploadedImage.src = '';
-            uploadedImageModal.src = '';
-            imageContainer.style.display = 'none';
-            editorImageContainer.style.display = 'none';
             imageDataURL = null;
-            clearCanvas();
+            uploadedImageModal.src = '';
+            editorImageContainer.style.display = 'none';
             clearCanvasModal();
-            userRectangles = [];
-            rectangleTexts = {};
-            cropRect = null;
-            isDrawingMode = false;
-            isCroppingMode = false;
-            drawButton.textContent = 'Draw';
-            cropButton.textContent = 'Crop';
-            confirmCropButton.style.display = 'none';
-            handlesVisible = true;
-            undoDrawButton.style.display = 'none';
-
-            const ppCtx = postprocessingCanvas.getContext('2d');
-            ppCtx.clearRect(0, 0, postprocessingCanvas.width, postprocessingCanvas.height);
-            const ppCtxModal = postprocessingCanvasModal.getContext('2d');
-            ppCtxModal.clearRect(0, 0, postprocessingCanvasModal.width, postprocessingCanvasModal.height);
         }
 
         // Function to Reset Input Fields
@@ -1530,42 +1207,10 @@
             field6.value = '';
         }
 
-        // Function to Clear Canvas (Main)
-        function clearCanvas() {
-            const ctx = overlayCanvas.getContext('2d');
-            ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-        }
-
         // Function to Clear Canvas (Modal)
         function clearCanvasModal() {
             const ctx = overlayCanvasModal.getContext('2d');
             ctx.clearRect(0, 0, overlayCanvasModal.width, overlayCanvasModal.height);
-        }
-
-        // Function to Redraw Canvas (Main)
-        function redrawCanvas() {
-            clearCanvas();
-            // Draw existing user rectangles
-            userRectangles.forEach((rect, index) => {
-                const fillStyle = rectangleTexts[index] ? 'rgba(0, 150, 255, 0.3)' : 'rgba(255, 0, 0, 0.3)';
-                const strokeStyle = rectangleTexts[index] ? 'blue' : 'red';
-                drawRectangle(rect, fillStyle, strokeStyle, overlayCanvas);
-                if (handlesVisible) {
-                    drawHandles(rect, index, overlayCanvas);
-                }
-            });
-            // Draw crop rectangle if any
-            if (cropRect) {
-                drawRectangle(cropRect, 'rgba(0, 150, 255, 0.25)', 'rgba(0, 150, 255, 1)', overlayCanvas);
-                if (handlesVisible) {
-                    drawHandles(cropRect, 'crop', overlayCanvas);
-                }
-            }
-            // Draw current rectangle if any
-            if (currentRect) {
-                const style = isDrawingMode ? { fill: 'rgba(255, 0, 0, 0.3)', stroke: 'red' } : { fill: 'rgba(0, 150, 255, 0.25)', stroke: 'rgba(0, 150, 255, 1)' };
-                drawRectangle(currentRect, style.fill, style.stroke, overlayCanvas);
-            }
         }
 
         // Function to Redraw Canvas (Modal)
@@ -1633,44 +1278,6 @@
         }
 
         // Check if Point is Inside Any Handle of Any Rectangle
-        function getHandleAt(x, y) {
-            // Check cropRect first
-            if (cropRect) {
-                const handle = getHandlePositions(cropRect);
-                for (let key of HANDLE_TYPES) {
-                    const pos = handle[key];
-                    if (
-                        x >= pos.x - HANDLE_SIZE / 2 &&
-                        x <= pos.x + HANDLE_SIZE / 2 &&
-                        y >= pos.y - HANDLE_SIZE / 2 &&
-                        y <= pos.y + HANDLE_SIZE / 2
-                    ) {
-                        return { type: 'resize', index: 'crop' };
-                    }
-                }
-            }
-
-            // Check userRectangles
-            for (let i = 0; i < userRectangles.length; i++) {
-                const rect = userRectangles[i];
-                const handles = getHandlePositions(rect);
-                for (let key of HANDLE_TYPES) {
-                    const pos = handles[key];
-                    if (
-                        x >= pos.x - HANDLE_SIZE / 2 &&
-                        x <= pos.x + HANDLE_SIZE / 2 &&
-                        y >= pos.y - HANDLE_SIZE / 2 &&
-                        y <= pos.y + HANDLE_SIZE / 2
-                    ) {
-                        return { type: 'resize', index: i };
-                    }
-                }
-            }
-
-            return null;
-        }
-
-        // Check if Point is Inside Any Handle of Any Rectangle in Modal
         function getHandleAtModal(x, y) {
             // Check cropRect first
             if (cropRect) {
@@ -1755,7 +1362,6 @@
             // Adjust canvas for the new image size
             uploadedImageModal.onload = () => {
                 adjustCanvasModal();
-                clearCanvas();
                 clearCanvasModal();
                 userRectangles = [];
                 rectangleTexts = {};
@@ -1763,64 +1369,13 @@
                 statusMessage.textContent = 'Image cropped successfully. You can now draw OCR rectangles.';
                 handlesVisible = true;
                 undoDrawButton.style.display = 'none';
-                redrawCanvas();
                 redrawCanvasModal();
 
-                applyPostprocessing();
                 applyPostprocessingModal();
             };
         }
 
         // Function to Resize Rectangle
-        function resizeRectangle(x, y) {
-            // Prevent resizing if handles are hidden
-            if (!handlesVisible) return;
-
-            if (resizeTarget === 'crop') {
-                if (!cropRect || !activeHandle || !initialRect) return;
-                // Implement all 8-direction resizing based on activeHandle
-                switch (activeHandle) {
-                    case 'resize':
-                        // Example: For simplicity, allow resizing from bottom-left only
-                        const newX = x;
-                        const newY = y;
-                        const newWidth = initialRect.width + (initialRect.x - newX);
-                        const newHeight = initialRect.height + (initialRect.y - newY);
-                        if (newWidth > 20 && newHeight > 20) { // Minimum size constraint
-                            cropRect.x = newX;
-                            cropRect.y = newY;
-                            cropRect.width = newWidth;
-                            cropRect.height = newHeight;
-                        }
-                        break;
-                }
-
-                cropRect = normalizeRect(cropRect);
-            } else if (typeof resizeTarget === 'number') {
-                const rect = userRectangles[resizeTarget];
-                if (!rect || !activeHandle || !initialRect) return;
-
-                switch (activeHandle) {
-                    case 'resize':
-                        // Example: For simplicity, allow resizing from bottom-left only
-                        const newX = x;
-                        const newY = y;
-                        const newWidth = initialRect.width + (initialRect.x - newX);
-                        const newHeight = initialRect.height + (initialRect.y - newY);
-                        if (newWidth > 20 && newHeight > 20) { // Minimum size constraint
-                            rect.x = newX;
-                            rect.y = newY;
-                            rect.width = newWidth;
-                            rect.height = newHeight;
-                        }
-                        break;
-                }
-
-                userRectangles[resizeTarget] = normalizeRect(rect);
-            }
-        }
-
-        // Function to Resize Rectangle in Modal
         function resizeRectangleModal(x, y) {
             // Prevent resizing if handles are hidden
             if (!handlesVisible) return;
@@ -1828,20 +1383,32 @@
             if (resizeTarget === 'crop') {
                 if (!cropRect || !activeHandle || !initialRect) return;
                 // Implement all 8-direction resizing based on activeHandle
-                switch (activeHandle) {
-                    case 'resize':
-                        // Example: For simplicity, allow resizing from bottom-left only
-                        const newX = x;
-                        const newY = y;
-                        const newWidth = initialRect.width + (initialRect.x - newX);
-                        const newHeight = initialRect.height + (initialRect.y - newY);
-                        if (newWidth > 20 && newHeight > 20) { // Minimum size constraint
-                            cropRect.x = newX;
-                            cropRect.y = newY;
-                            cropRect.width = newWidth;
-                            cropRect.height = newHeight;
-                        }
-                        break;
+                const handleKey = activeHandle; // e.g., 'sw', 'ne', etc.
+                const handles = getHandlePositions(initialRect);
+                const oppositeHandleMap = {
+                    'sw': 'ne',
+                    'se': 'nw',
+                    'nw': 'se',
+                    'ne': 'sw',
+                    'w': 'e',
+                    'e': 'w',
+                    'n': 's',
+                    's': 'n'
+                };
+                const oppositeKey = oppositeHandleMap[handleKey];
+                const oppositeHandle = handles[oppositeKey];
+
+                // Calculate new position based on handle being dragged
+                const newX = (handleKey.includes('w')) ? x : cropRect.x;
+                const newY = (handleKey.includes('n')) ? y : cropRect.y;
+                const newWidth = (handleKey.includes('w')) ? cropRect.width + (cropRect.x - newX) : x - cropRect.x;
+                const newHeight = (handleKey.includes('n')) ? cropRect.height + (cropRect.y - newY) : y - cropRect.y;
+
+                if (newWidth > 20 && newHeight > 20) { // Minimum size constraint
+                    cropRect.x = newX;
+                    cropRect.y = newY;
+                    cropRect.width = newWidth;
+                    cropRect.height = newHeight;
                 }
 
                 cropRect = normalizeRect(cropRect);
@@ -1849,43 +1416,40 @@
                 const rect = userRectangles[resizeTarget];
                 if (!rect || !activeHandle || !initialRect) return;
 
-                switch (activeHandle) {
-                    case 'resize':
-                        // Example: For simplicity, allow resizing from bottom-left only
-                        const newX = x;
-                        const newY = y;
-                        const newWidth = initialRect.width + (initialRect.x - newX);
-                        const newHeight = initialRect.height + (initialRect.y - newY);
-                        if (newWidth > 20 && newHeight > 20) { // Minimum size constraint
-                            rect.x = newX;
-                            rect.y = newY;
-                            rect.width = newWidth;
-                            rect.height = newHeight;
-                        }
-                        break;
+                // Implement all 8-direction resizing based on activeHandle
+                const handleKey = activeHandle; // e.g., 'sw', 'ne', etc.
+                const handles = getHandlePositions(initialRect);
+                const oppositeHandleMap = {
+                    'sw': 'ne',
+                    'se': 'nw',
+                    'nw': 'se',
+                    'ne': 'sw',
+                    'w': 'e',
+                    'e': 'w',
+                    'n': 's',
+                    's': 'n'
+                };
+                const oppositeKey = oppositeHandleMap[handleKey];
+                const oppositeHandle = handles[oppositeKey];
+
+                // Calculate new position based on handle being dragged
+                const newX = (handleKey.includes('w')) ? x : rect.x;
+                const newY = (handleKey.includes('n')) ? y : rect.y;
+                const newWidth = (handleKey.includes('w')) ? rect.width + (rect.x - newX) : x - rect.x;
+                const newHeight = (handleKey.includes('n')) ? rect.height + (rect.y - newY) : y - rect.y;
+
+                if (newWidth > 20 && newHeight > 20) { // Minimum size constraint
+                    rect.x = newX;
+                    rect.y = newY;
+                    rect.width = newWidth;
+                    rect.height = newHeight;
                 }
 
                 userRectangles[resizeTarget] = normalizeRect(rect);
             }
         }
 
-        // **New Function: Move Rectangle**
-        function moveRectangle(x, y) {
-            if (resizeTarget === 'crop') {
-                if (!cropRect) return;
-                cropRect.x = x - moveOffset.x;
-                cropRect.y = y - moveOffset.y;
-                cropRect = normalizeRect(cropRect);
-            } else if (typeof resizeTarget === 'number') {
-                const rect = userRectangles[resizeTarget];
-                if (!rect) return;
-                rect.x = x - moveOffset.x;
-                rect.y = y - moveOffset.y;
-                userRectangles[resizeTarget] = normalizeRect(rect);
-            }
-        }
-
-        // **New Function: Move Rectangle in Modal**
+        // Function to Move Rectangle
         function moveRectangleModal(x, y) {
             if (resizeTarget === 'crop') {
                 if (!cropRect) return;
@@ -1900,15 +1464,6 @@
                 userRectangles[resizeTarget] = normalizeRect(rect);
             }
         }
-
-        // Function to Redraw Canvas for Modal
-        // Included in redrawCanvasModal()
-
-        // Function to Draw Rectangle in Specified Canvas
-        // Included in drawRectangle()
-
-        // Function to Get Handle Information
-        // Included in getHandleAt() and getHandleAtModal()
 
         // Function to Assign Text to Fields
         function assignTextToField(text) {
@@ -1942,85 +1497,7 @@
             targetField.value = text;
         }
 
-        // Function to Perform OCR using the Postprocessed Image
-        // Already updated imageDataURL to postprocessed image
-
         /* -------------------- Postprocessing Functions -------------------- */
-
-        // Function to Apply Postprocessing Effects (Main)
-        function applyPostprocessing() {
-            if (!uploadedImage.src) return;
-
-            const ppCtx = postprocessingCanvas.getContext('2d');
-
-            // Clear Postprocessing Canvas
-            ppCtx.clearRect(0, 0, postprocessingCanvas.width, postprocessingCanvas.height);
-
-            // Draw the uploaded image onto Postprocessing Canvas
-            ppCtx.drawImage(uploadedImage, 0, 0, uploadedImage.clientWidth, uploadedImage.clientHeight);
-
-            // Get ImageData
-            let imageData = ppCtx.getImageData(0, 0, postprocessingCanvas.width, postprocessingCanvas.height);
-            let data = imageData.data;
-
-            // Apply Grayscale
-            if (grayscaleCheckbox.checked) {
-                for (let i = 0; i < data.length; i += 4) {
-                    const avg = 0.3 * data[i] + 0.59 * data[i + 1] + 0.11 * data[i + 2];
-                    data[i] = data[i + 1] = data[i + 2] = avg;
-                }
-            }
-
-            // Apply Brightness
-            const brightnessValue = parseInt(brightnessSlider.value, 10);
-            if (brightnessValue !== 0) {
-                const factor = brightnessValue;
-                for (let i = 0; i < data.length; i += 4) {
-                    data[i] += factor;
-                    data[i + 1] += factor;
-                    data[i + 2] += factor;
-                }
-            }
-
-            // Apply Clarity (Contrast Adjustment)
-            const clarityValue = parseInt(claritySlider.value, 10);
-            if (clarityValue !== 50) {
-                const contrast = clarityValue / 50;
-                for (let i = 0; i < data.length; i += 4) {
-                    data[i] = ((data[i] - 128) * contrast) + 128;
-                    data[i + 1] = ((data[i + 1] - 128) * contrast) + 128;
-                    data[i + 2] = ((data[i + 2] - 128) * contrast) + 128;
-                }
-            }
-
-            // Apply Highlight (Additional Brightness)
-            const highlightValue = parseInt(highlightSlider.value, 10);
-            if (highlightValue !== 0) {
-                const factor = highlightValue * 0.5;
-                for (let i = 0; i < data.length; i += 4) {
-                    if (data[i] > 50 || data[i + 1] > 50 || data[i + 2] > 50) {
-                        data[i] += factor;
-                        data[i + 1] += factor;
-                        data[i + 2] += factor;
-                    }
-                }
-            }
-
-            // Put modified data back
-            ppCtx.putImageData(imageData, 0, 0);
-
-            // Apply Sharpening
-            const sharpeningValue = parseInt(sharpeningSlider.value, 10);
-            if (sharpeningValue > 0) {
-                applySharpeningFilter(ppCtx, sharpeningValue / 100);
-            }
-
-            // Update imageDataURL to use the postprocessed image
-            imageDataURL = postprocessingCanvas.toDataURL();
-
-            // Redraw overlayCanvas
-            redrawCanvas();
-        }
 
         // Function to Apply Postprocessing Effects (Modal)
         function applyPostprocessingModal() {
@@ -2153,23 +1630,18 @@
 
         // Event Listeners for Postprocessing Controls
         grayscaleCheckbox.addEventListener('change', () => {
-            applyPostprocessing();
             applyPostprocessingModal();
         });
         highlightSlider.addEventListener('input', () => {
-            applyPostprocessing();
             applyPostprocessingModal();
         });
         claritySlider.addEventListener('input', () => {
-            applyPostprocessing();
             applyPostprocessingModal();
         });
         brightnessSlider.addEventListener('input', () => {
-            applyPostprocessing();
             applyPostprocessingModal();
         });
         sharpeningSlider.addEventListener('input', () => {
-            applyPostprocessing();
             applyPostprocessingModal();
         });
 
