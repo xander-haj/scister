@@ -292,6 +292,23 @@
             position: relative;
         }
 
+        /* Editor Modal Close Button */
+        #editorModalClose {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            cursor: pointer;
+        }
+        #editorModalClose:hover,
+        #editorModalClose:focus {
+            color: #fff;
+            text-decoration: none;
+        }
+
         /* Horizontal Scrolling Toolbar */
         #editorToolbar {
             width: 100%;
@@ -432,6 +449,9 @@
     <!-- Editor Modal -->
     <div id="editorModal">
         <div id="editorModalContent">
+            <!-- Close X button -->
+            <span id="editorModalClose">&times;</span>
+
             <!-- Horizontal Scrolling Toolbar -->
             <div id="editorToolbar">
                 <button id="draw-button" class="side-menu-button">Draw</button>
@@ -544,6 +564,7 @@
         const editorToolbar = document.getElementById('editorToolbar');
         const editorCanvasContainer = document.getElementById('editorCanvasContainer');
         const openEditorBtn = document.getElementById('openEditorBtn');
+        const editorModalClose = document.getElementById('editorModalClose');
 
         // Toolbar Buttons
         const drawButton = document.getElementById('draw-button');
@@ -615,6 +636,15 @@
         });
 
         /****************************************************
+         * Editor Modal Close Event
+         ****************************************************/
+        editorModalClose.addEventListener('click', () => {
+            // Move imageContainer back to main page
+            document.body.querySelector('.container').appendChild(imageContainer);
+            editorModal.style.display = 'none';
+        });
+
+        /****************************************************
          * Editor Modal & "Open Editor" Button
          ****************************************************/
         // Hide/Show "Open Editor" button based on image upload
@@ -635,8 +665,7 @@
             editorModal.style.display = 'block';
         });
 
-        // If user clicks outside the editor modal content, close it (optional).
-        // You could remove this if you'd rather have a dedicated "close" button.
+        // Optional: If user clicks outside the editor modal content, close it
         editorModal.addEventListener('click', (e) => {
             if (e.target === editorModal) {
                 // Move imageContainer back to main page
