@@ -233,10 +233,10 @@
         }
 
         /*****************************************
-         * Editor Modal (replaces side menu)
+         * Editor Modal
          *****************************************/
         #editorModal {
-            display: none; /* Ensures modal is hidden on page launch */
+            display: none; /* Hidden on page launch */
             position: fixed;
             z-index: 9999;
             left: 0;
@@ -248,10 +248,10 @@
             flex-direction: column;
             align-items: center;
             justify-content: flex-start;
-            overflow-y: auto; /* Allows vertical scroll if needed on small screens */
+            overflow-y: auto; /* Allows vertical scroll if needed */
         }
 
-        /* Horizontal toolbar for all the old "side menu" controls */
+        /* Horizontal toolbar for the old side menu controls */
         #editorToolbar {
             display: flex;
             flex-direction: row;
@@ -284,7 +284,7 @@
             transform: translateY(-2px);
         }
 
-        /* Specific Button Colors (carried over from side menu) */
+        /* Button Colors (carried over from side menu) */
         #draw-button {
             background-color: #005cb8; 
         }
@@ -349,7 +349,7 @@
             background-color: #00B3A1;
         }
 
-        /* Info button style carried over */
+        /* Info button style */
         #info-button {
             background-color: #8c8c8c;
             color: #fff;
@@ -363,7 +363,7 @@
             outline: none;
         }
 
-        /* Postprocessing Controls inside the editor modal */
+        /* Postprocessing Controls in the editor modal */
         .postprocessing-controls {
             display: none; /* toggled by #postprocessing-button */
             flex-direction: column;
@@ -389,7 +389,7 @@
             margin-bottom: 10px;
         }
 
-        /* The main area inside the editor modal to hold the image */
+        /* The main area in the modal for the image */
         #editorImageContainer {
             width: 100%;
             max-width: 600px;
@@ -476,13 +476,13 @@
             <h2>Information</h2>
             <ul>
                <li> Upload an image and perform OCR.</li> 
-               <li> Use the drawing or cropping tools to select areas for OCR or crop the image. </li>
+               <li> Use the drawing or cropping tools to select areas for OCR or to crop the image. </li>
                <li> After drawing a crop rectangle, click "Confirm Crop" to apply the crop. </li>
                <li> Recognized words within drawn rectangles will be highlighted in light blue on the image. </li>
-               <li> Click on a highlighted block to assign the concatenated text to one of the input fields. </li>
-               <li> Press "Update Table" to add a row to the table with the field values. </li>
+               <li> Click on a highlighted block to assign the recognized text to any input field. </li>
+               <li> Press "Update Table" to add a row with the current field values. </li>
                <li> Process multiple images by clearing the image and fields. </li>
-               <li> Finally, press "Save CSV" to download all collected data. </li>
+               <li> Finally, press "Save CSV" to download the collected data. </li>
             </ul>
         </div>
     </div>
@@ -544,7 +544,7 @@
         </tbody>
     </table>
 
-    <!-- Editor Modal (contains the old side menu controls in a horizontal toolbar) -->
+    <!-- Editor Modal (contains the old side menu controls as a horizontal toolbar) -->
     <div id="editorModal">
         <div id="editorToolbar">
             <!-- Buttons from the original side menu, now in a horizontal scroll bar -->
@@ -642,16 +642,16 @@
         let isCroppingMode = false;
         let isDrawing = false;
         let isResizing = false;
-        let isMoving = false; // separate anchor for moving
+        let isMoving = false; 
         let activeHandle = null;
         let startX = 0;
         let startY = 0;
         let currentRect = null;
-        let moveOffset = { x: 0, y: 0 }; 
+        let moveOffset = { x: 0, y: 0 };
         let HANDLE_SIZE = 10;
         /*
-           We keep exactly 2 handle types:
-           'sw' = single anchor for RESIZE
+           We have exactly 2 handle types:
+           'sw' = single anchor for RESIZE in all directions
            'ne' = separate anchor for MOVE
         */
         const HANDLE_TYPES = ['sw', 'ne'];
@@ -667,7 +667,7 @@
             // Show the editor modal
             editorModal.style.display = 'flex';
 
-            // Move the actual imageContainer DOM node into the modal area
+            // Move the actual imageContainer into the modal
             editorImageContainer.appendChild(imageContainer);
 
             // Ensure imageContainer is displayed if an image is loaded
@@ -706,7 +706,7 @@
             if (!uploadedImage || !uploadedImage.src) return;
             const ratio = window.devicePixelRatio || 1;
 
-            // Adjust the postprocessingCanvas to match the displayed image
+            // Adjust postprocessingCanvas
             postprocessingCanvas.width = uploadedImage.clientWidth * ratio;
             postprocessingCanvas.height = uploadedImage.clientHeight * ratio;
             postprocessingCanvas.style.width = `${uploadedImage.clientWidth}px`;
@@ -714,7 +714,7 @@
             const ppCtx = postprocessingCanvas.getContext('2d');
             ppCtx.scale(ratio, ratio);
 
-            // Adjust the overlayCanvas to match the displayed image
+            // Adjust overlayCanvas
             overlayCanvas.width = uploadedImage.clientWidth * ratio;
             overlayCanvas.height = uploadedImage.clientHeight * ratio;
             overlayCanvas.style.width = `${uploadedImage.clientWidth}px`;
@@ -727,7 +727,7 @@
         }
 
         function updateHandleSize() {
-            // For smaller screens, we make the handle bigger
+            // For smaller screens, we can make the handle bigger
             if (window.innerWidth <= 600) {
                 HANDLE_SIZE = 20;
             } else {
@@ -758,7 +758,6 @@
                 uploadedImage.src = e.target.result;
                 uploadedImage.onload = () => {
                     imageContainer.style.display = 'block';
-                    // Dynamically fit the image to the screen width
                     adjustCanvas();
 
                     clearCanvas();
@@ -774,7 +773,7 @@
                     applyPostprocessing();
                     redrawCanvas();
 
-                    // Reveal the "Open Editor" button now that we have an image
+                    // Reveal "Open Editor" button once we have an image
                     openEditorBtn.style.display = 'inline-block';
                 };
             };
@@ -907,11 +906,10 @@
             const handleInfo = getHandleAt(x, y);
             if (handleInfo) {
                 if (handleInfo.type === 'sw') {
-                    // Single anchor for resizing
+                    // Single anchor for resizing in all directions
                     isResizing = true;
                     activeHandle = 'sw';
                     resizeTarget = (handleInfo.rect === 'crop' ? 'crop' : handleInfo.index);
-                    // Store the initial rect for reference
                     if (resizeTarget === 'crop') {
                         initialRect = { ...cropRect };
                     } else {
@@ -921,7 +919,6 @@
                     // Move anchor
                     isMoving = true;
                     resizeTarget = (handleInfo.rect === 'crop' ? 'crop' : handleInfo.index);
-                    // Calculate offset
                     if (resizeTarget === 'crop') {
                         moveOffset.x = x - cropRect.x;
                         moveOffset.y = y - cropRect.y;
@@ -934,7 +931,7 @@
                 return;
             }
 
-            // If no handle was clicked, either draw or define new crop rect
+            // If no handle clicked, we either draw or set new crop rect
             if (isDrawingMode || (isCroppingMode && !cropRect)) {
                 isDrawing = true;
                 startX = x;
@@ -967,7 +964,7 @@
                 redrawCanvas();
                 // Different color for draw vs. crop
                 const style = isDrawingMode 
-                    ? { fill: 'rgba(255, 0, 0, 0.3)', stroke: 'red' } 
+                    ? { fill: 'rgba(255, 0, 0, 0.3)', stroke: 'red' }
                     : { fill: 'rgba(0, 150, 255, 0.25)', stroke: 'rgba(0, 150, 255, 1)' };
                 drawRectangle(currentRect, style.fill, style.stroke);
             }
@@ -1067,7 +1064,7 @@
             const scaleX = uploadedImage.naturalWidth / uploadedImage.clientWidth;
             const scaleY = uploadedImage.naturalHeight / uploadedImage.clientHeight;
 
-            // Cropped area
+            // Crop area
             const cropX = rect.x * scaleX;
             const cropY = rect.y * scaleY;
             const cropW = rect.width * scaleX;
@@ -1101,7 +1098,7 @@
                 const r = userRectangles[i];
                 if (x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height) {
                     const text = rectangleTexts[i] || '';
-                    if (text === '') {
+                    if (!text) {
                         alert('No text extracted for this area.');
                         return;
                     }
@@ -1226,8 +1223,8 @@
             // Draw existing user rectangles
             userRectangles.forEach((rect, idx) => {
                 const fillStyle = rectangleTexts[idx] 
-                    ? 'rgba(0, 150, 255, 0.3)' 
-                    : 'rgba(255, 0, 0, 0.3)';
+                    ? 'rgba(0, 150, 255, 0.3)'  // highlighted if OCR text is found
+                    : 'rgba(255, 0, 0, 0.3)'; // red if not yet processed
                 const strokeStyle = rectangleTexts[idx] ? 'blue' : 'red';
                 drawRectangle(rect, fillStyle, strokeStyle);
                 if (handlesVisible) {
@@ -1261,8 +1258,8 @@
 
         function getHandlePositions(rect) {
             return {
-                sw: { x: rect.x,              y: rect.y + rect.height }, // bottom-left
-                ne: { x: rect.x + rect.width, y: rect.y }               // top-right
+                sw: { x: rect.x,              y: rect.y + rect.height }, // bottom-left handle (resize)
+                ne: { x: rect.x + rect.width, y: rect.y }               // top-right handle (move)
             };
         }
 
@@ -1271,6 +1268,7 @@
             const handles = getHandlePositions(rect);
             ctx.fillStyle = '#e0e0e0';
             ctx.strokeStyle = '#000';
+            // 'sw' = single anchor for resizing, 'ne' = anchor for moving
             ['sw', 'ne'].forEach(key => {
                 const h = handles[key];
                 ctx.fillRect(h.x - HANDLE_SIZE / 2, h.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
@@ -1374,7 +1372,7 @@
             if (!handlesVisible || !activeHandle || !initialRect) return;
             if (resizeTarget === null) return;
 
-            // 'sw' anchor modifies from bottom-left corner
+            // 'sw' anchor modifies from the bottom-left corner
             if (activeHandle === 'sw') {
                 if (resizeTarget === 'crop') {
                     if (!cropRect) return;
@@ -1395,8 +1393,7 @@
                     cropRect.height = finalH;
 
                     cropRect = normalizeRect(cropRect);
-                } 
-                else if (typeof resizeTarget === 'number') {
+                } else if (typeof resizeTarget === 'number') {
                     const r = userRectangles[resizeTarget];
                     if (!r) return;
 
@@ -1422,7 +1419,7 @@
         }
 
         /*****************************************************************
-         * Prevent Scrolling When Touching Canvas in Draw/Crop Mode (Mobile)
+         * Prevent Scrolling When Touching Canvas in Draw/Crop Mode
          *****************************************************************/
         document.body.addEventListener('touchstart', function(e) {
             if ((isDrawingMode || isCroppingMode) && e.target === overlayCanvas) {
@@ -1450,7 +1447,7 @@
             // Clear postprocessing canvas
             ppCtx.clearRect(0, 0, postprocessingCanvas.width, postprocessingCanvas.height);
 
-            // Draw image onto postprocessingCanvas
+            // Draw image
             ppCtx.drawImage(uploadedImage, 0, 0, uploadedImage.clientWidth, uploadedImage.clientHeight);
 
             // Get image data
@@ -1501,7 +1498,7 @@
                 }
             }
 
-            // Put the partially modified data back
+            // Put partial modifications back
             ppCtx.putImageData(imageData, 0, 0);
 
             // Sharpen
@@ -1510,7 +1507,7 @@
                 applySharpeningFilter(ppCtx, sharpeningValue / 100);
             }
 
-            // Update main imageDataURL to reflect postprocessing
+            // Update main imageDataURL
             imageDataURL = postprocessingCanvas.toDataURL();
             redrawCanvas();
         }
@@ -1533,8 +1530,6 @@
             const src = data;
             const sw = width;
             const sh = height;
-            const w = sw;
-            const h = sh;
             const output = new Uint8ClampedArray(src.length);
 
             for (let y = 0; y < h; y++) {
@@ -1559,6 +1554,8 @@
                     output[dstOffset + 3] = src[dstOffset + 3];
                 }
             }
+
+            // Copy sharpened data
             for (let i = 0; i < data.length; i++) {
                 data[i] = output[i];
             }
