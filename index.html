@@ -341,7 +341,7 @@
             transform: translateX(5px);
         }
 
-        /* Distinctive colors for special buttons */
+        /* Keep distinctive colors for the special buttons */
         #draw-button { background-color: #005cb8; }
         #draw-button:hover { background-color: #1C86EE; }
         #undo-draw-button { background-color: #c47f00; }
@@ -361,7 +361,7 @@
         #postprocessing-button { background-color: #009da0; }
         #postprocessing-button:hover { background-color: #00B3A1; }
 
-        /* Editor Canvas Container */
+        /* Editor Canvas Container (so the image is visible & editable) */
         #editorCanvasContainer {
             flex: 1;
             width: 100%;
@@ -371,6 +371,7 @@
             overflow: hidden; /* No scroll needed */
             position: relative;
         }
+        /* We reuse #imageContainer inside this area for editing. */
 
         /* Postprocessing Controls inside the Toolbar (hidden by default) */
         .postprocessing-controls {
@@ -417,6 +418,7 @@
                 padding: 10px 12px;
             }
 
+            /* Larger handle size on smaller screens */
             .postprocessing-controls label {
                 font-size: 13px;
             }
@@ -618,11 +620,6 @@
         let handlesVisible = true;
         let initialRect = null; // store initial rectangle during resize
 
-        // We'll update these once the canvas is sized
-        let currentRatio = 1; // devicePixelRatio used for drawing
-        let actualCanvasWidth = 0;  // overlayCanvas.width
-        let actualCanvasHeight = 0; // overlayCanvas.height
-
         /****************************************************
          * Info Modal Events
          ****************************************************/
@@ -633,7 +630,7 @@
             infoModal.style.display = 'none';
         });
         window.addEventListener('click', (event) => {
-            if (event.target === infoModal) {
+            if (event.target == infoModal) {
                 infoModal.style.display = 'none';
             }
         });
@@ -666,7 +663,7 @@
             editorModal.style.display = 'block';
         });
 
-        // Optional: Close if user clicks outside the editor modal content
+        // Optional: If user clicks outside the editor modal content, close it
         editorModal.addEventListener('click', (e) => {
             if (e.target === editorModal) {
                 document.body.querySelector('.container').appendChild(imageContainer);
@@ -741,52 +738,54 @@
             reader.readAsDataURL(file);
         });
 
-        // We retrieve the click coordinates in canvas space by applying a scale factor
-        function getCanvasCoordinates(e) {
-            const rect = overlayCanvas.getBoundingClientRect();
-            // rect.width / rect.height is the displayed size of the canvas in CSS pixels
-            // overlayCanvas.width / overlayCanvas.height is the real size in device pixels
-            const scaleX = overlayCanvas.width / rect.width;
-            const scaleY = overlayCanvas.height / rect.height;
-
-            // (e.clientX - rect.left) is in CSS pixel space, so multiply by scale
-            const x = (e.clientX - rect.left) * scaleX;
-            const y = (e.clientY - rect.top) * scaleY;
-            return { x, y };
-        }
-
-        // Adjust for high-DPI (retina) and keep canvases in sync
         function adjustCanvas() {
             if (!uploadedImage.src) return;
-            const ratio = window.devicePixelRatio || 1;
-            currentRatio = ratio;
 
-            // Set both canvases to match the displayed image size * ratio
-            postprocessingCanvas.width = Math.floor(uploadedImage.clientWidth * ratio);
-            postprocessingCanvas.height = Math.floor(uploadedImage.clientHeight * ratio);
+            // Get devicePixelRatio or default to 1
+            const ratio = window.devicePixelRatio || 1;
+
+            // Match displayed image size for both canvases
+            postprocessingCanvas.width = uploadedImage.clientWidth * ratio;
+            postprocessingCanvas.height = uploadedImage.clientHeight * ratio;
             postprocessingCanvas.style.width = `${uploadedImage.clientWidth}px`;
             postprocessingCanvas.style.height = `${uploadedImage.clientHeight}px`;
 
-            overlayCanvas.width = Math.floor(uploadedImage.clientWidth * ratio);
-            overlayCanvas.height = Math.floor(uploadedImage.clientHeight * ratio);
+            overlayCanvas.width = uploadedImage.clientWidth * ratio;
+            overlayCanvas.height = uploadedImage.clientHeight * ratio;
             overlayCanvas.style.width = `${uploadedImage.clientWidth}px`;
             overlayCanvas.style.height = `${uploadedImage.clientHeight}px`;
 
-            actualCanvasWidth = overlayCanvas.width;
-            actualCanvasHeight = overlayCanvas.height;
-
+            // Scale context for high-DPI displays
             const ppCtx = postprocessingCanvas.getContext('2d');
+            ppCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
+
             const ovCtx = overlayCanvas.getContext('2d');
-
-            // Reset transformations
-            ppCtx.setTransform(1, 0, 0, 1, 0, 0);
-            ovCtx.setTransform(1, 0, 0, 1, 0, 0);
-
-            // Scale up the context to ensure crisp drawing on high DPI
-            ppCtx.scale(ratio, ratio);
-            ovCtx.scale(ratio, ratio);
+            ovCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
 
             applyPostprocessing();
+        }
+
+        /****************************************************
+         * Utility to convert mouse/touch coordinates to
+         * overlayCanvas coordinates (accounting for scaling)
+         ****************************************************/
+        function getCanvasCoords(evt) {
+            const rect = overlayCanvas.getBoundingClientRect();
+            // We'll map the mouse/touch to the overlayCanvas width/height
+            const scaleX = overlayCanvas.width / rect.width;
+            const scaleY = overlayCanvas.height / rect.height;
+
+            let clientX, clientY;
+            if (evt.touches && evt.touches.length === 1) {
+                clientX = evt.touches[0].clientX;
+                clientY = evt.touches[0].clientY;
+            } else {
+                clientX = evt.clientX;
+                clientY = evt.clientY;
+            }
+            const x = (clientX - rect.left) * scaleX;
+            const y = (clientY - rect.top) * scaleY;
+            return { x, y };
         }
 
         /****************************************************
@@ -805,7 +804,7 @@
             isDrawingMode = !isDrawingMode;
             if (isDrawingMode) {
                 drawButton.textContent = 'Cancel Draw';
-                statusMessage.textContent = 'Draw mode activated. Click/Tap and drag to draw rectangles for OCR.';
+                statusMessage.textContent = 'Draw mode activated. Tap or click-drag on the image to draw rectangles for OCR.';
                 cropRect = null;
                 confirmCropButton.style.display = 'none';
                 handlesVisible = true;
@@ -831,7 +830,7 @@
             isCroppingMode = !isCroppingMode;
             if (isCroppingMode) {
                 cropButton.textContent = 'Cancel Crop';
-                statusMessage.textContent = 'Crop mode activated. Click/Tap and drag on the image to select a crop area.';
+                statusMessage.textContent = 'Crop mode activated. Tap or click-drag on the image to select the crop area.';
                 cropRect = null;
                 confirmCropButton.style.display = 'none';
                 handlesVisible = true;
@@ -874,26 +873,23 @@
          * Mouse Events for Drawing / Resizing / Moving
          ****************************************************/
         overlayCanvas.addEventListener('mousedown', (e) => {
-            const { x, y } = getCanvasCoordinates(e);
+            const { x, y } = getCanvasCoords(e);
+
             const handleInfo = getHandleAt(x, y);
             if (handleInfo) {
                 if (handleInfo.type === 'sw') {
-                    // Resizing
                     isResizing = true;
                     activeHandle = handleInfo.type;
                     resizeTarget = handleInfo.rect === 'crop' ? 'crop' : handleInfo.index;
                     if (resizeTarget === 'crop') {
-                        if (cropRect) {
-                            initialRect = { ...cropRect };
-                        }
+                        initialRect = { ...cropRect };
                     } else {
                         initialRect = { ...userRectangles[resizeTarget] };
                     }
                 } else if (handleInfo.type === 'ne') {
-                    // Moving
                     isMoving = true;
                     resizeTarget = handleInfo.rect === 'crop' ? 'crop' : handleInfo.index;
-                    if (resizeTarget === 'crop' && cropRect) {
+                    if (resizeTarget === 'crop') {
                         moveOffset.x = x - cropRect.x;
                         moveOffset.y = y - cropRect.y;
                     } else {
@@ -914,7 +910,7 @@
         });
 
         overlayCanvas.addEventListener('mousemove', (e) => {
-            const { x, y } = getCanvasCoordinates(e);
+            const { x, y } = getCanvasCoords(e);
 
             if (isResizing) {
                 resizeRectangle(x, y);
@@ -982,12 +978,7 @@
             if (e.touches.length !== 1) return;
             e.preventDefault();
 
-            const touch = e.touches[0];
-            const rect = overlayCanvas.getBoundingClientRect();
-            const scaleX = overlayCanvas.width / rect.width;
-            const scaleY = overlayCanvas.height / rect.height;
-            const x = (touch.clientX - rect.left) * scaleX;
-            const y = (touch.clientY - rect.top) * scaleY;
+            const { x, y } = getCanvasCoords(e);
 
             const handleInfo = getHandleAt(x, y);
             if (handleInfo) {
@@ -996,16 +987,14 @@
                     activeHandle = handleInfo.type;
                     resizeTarget = handleInfo.rect === 'crop' ? 'crop' : handleInfo.index;
                     if (resizeTarget === 'crop') {
-                        if (cropRect) {
-                            initialRect = { ...cropRect };
-                        }
+                        initialRect = { ...cropRect };
                     } else {
                         initialRect = { ...userRectangles[resizeTarget] };
                     }
                 } else if (handleInfo.type === 'ne') {
                     isMoving = true;
                     resizeTarget = handleInfo.rect === 'crop' ? 'crop' : handleInfo.index;
-                    if (resizeTarget === 'crop' && cropRect) {
+                    if (resizeTarget === 'crop') {
                         moveOffset.x = x - cropRect.x;
                         moveOffset.y = y - cropRect.y;
                     } else {
@@ -1030,12 +1019,7 @@
             if (e.touches.length !== 1) return;
             e.preventDefault();
 
-            const touch = e.touches[0];
-            const rect = overlayCanvas.getBoundingClientRect();
-            const scaleX = overlayCanvas.width / rect.width;
-            const scaleY = overlayCanvas.height / rect.height;
-            const x = (touch.clientX - rect.left) * scaleX;
-            const y = (touch.clientY - rect.top) * scaleY;
+            const { x, y } = getCanvasCoords(e);
 
             if (isResizing) {
                 resizeRectangle(x, y);
@@ -1117,17 +1101,14 @@
             if (!handlesVisible) return;
             if (!activeHandle || !initialRect) return;
 
-            // We have a single 'sw' handle that handles resizing from bottom-left
             if (resizeTarget === 'crop') {
                 if (!cropRect) return;
                 switch (activeHandle) {
-                    case 'sw':
+                    case 'sw': {
                         let newX = x;
                         let newY = y;
                         let newW = initialRect.width + (initialRect.x - newX);
                         let newH = initialRect.height + (initialRect.y - newY);
-
-                        // Flip if negative
                         if (newW < 0) {
                             newW = Math.abs(newW);
                             newX = initialRect.x + initialRect.width;
@@ -1136,31 +1117,26 @@
                             newH = Math.abs(newH);
                             newY = initialRect.y + initialRect.height;
                         }
-
-                        if (newW < 20) {
-                            newW = 20;
-                        }
-                        if (newH < 20) {
-                            newH = 20;
-                        }
+                        if (newW < 20) newW = 20;
+                        if (newH < 20) newH = 20;
 
                         cropRect.x = newX;
                         cropRect.y = newY;
                         cropRect.width = newW;
                         cropRect.height = newH;
                         break;
+                    }
                 }
                 cropRect = normalizeRect(cropRect);
             } else if (typeof resizeTarget === 'number') {
                 const rect = userRectangles[resizeTarget];
                 if (!rect) return;
                 switch (activeHandle) {
-                    case 'sw':
+                    case 'sw': {
                         let newX = x;
                         let newY = y;
                         let newW = initialRect.width + (initialRect.x - newX);
                         let newH = initialRect.height + (initialRect.y - newY);
-
                         if (newW < 0) {
                             newW = Math.abs(newW);
                             newX = initialRect.x + initialRect.width;
@@ -1169,19 +1145,15 @@
                             newH = Math.abs(newH);
                             newY = initialRect.y + initialRect.height;
                         }
-
-                        if (newW < 20) {
-                            newW = 20;
-                        }
-                        if (newH < 20) {
-                            newH = 20;
-                        }
+                        if (newW < 20) newW = 20;
+                        if (newH < 20) newH = 20;
 
                         rect.x = newX;
                         rect.y = newY;
                         rect.width = newW;
                         rect.height = newH;
                         break;
+                    }
                 }
                 userRectangles[resizeTarget] = normalizeRect(rect);
             }
@@ -1197,8 +1169,6 @@
 
         function redrawCanvas() {
             clearCanvas();
-
-            // Draw user rectangles
             userRectangles.forEach((rect, i) => {
                 const fillStyle = rectangleTexts[i]
                     ? 'rgba(0, 150, 255, 0.3)'
@@ -1209,16 +1179,12 @@
                     drawHandles(rect, i);
                 }
             });
-
-            // Draw crop rectangle if any
             if (cropRect) {
                 drawRectangle(cropRect, 'rgba(0, 150, 255, 0.25)', 'rgba(0, 150, 255, 1)');
                 if (handlesVisible) {
                     drawHandles(cropRect, 'crop');
                 }
             }
-
-            // Draw current rectangle if any
             if (currentRect) {
                 const style = isDrawingMode
                     ? { fill: 'rgba(255, 0, 0, 0.3)', stroke: 'red' }
@@ -1248,7 +1214,6 @@
             });
         }
 
-        // Returns positions of the 'sw' (bottom-left) handle and 'ne' (top-right) handle
         function getHandlePositions(rect) {
             return {
                 sw: { x: rect.x, y: rect.y + rect.height },
@@ -1256,7 +1221,6 @@
             };
         }
 
-        // Check if user clicked a handle
         function getHandleAt(x, y) {
             // Check cropRect first
             if (cropRect) {
@@ -1292,7 +1256,6 @@
             return null;
         }
 
-        // Normalize rect to keep inside the overlayCanvas boundaries
         function normalizeRect(rect) {
             let { x, y, width, height } = rect;
             if (width < 0) {
@@ -1303,13 +1266,16 @@
                 y += height;
                 height = Math.abs(height);
             }
-            if (x < 0) x = 0;
-            if (y < 0) y = 0;
-            if (x + width > overlayCanvas.width) {
-                width = overlayCanvas.width - x;
-            }
-            if (y + height > overlayCanvas.height) {
-                height = overlayCanvas.height - y;
+            // Keep it within the image boundaries (overlayCanvas size)
+            if (overlayCanvas.width && overlayCanvas.height) {
+                if (x < 0) x = 0;
+                if (y < 0) y = 0;
+                if (x + width > overlayCanvas.width) {
+                    width = overlayCanvas.width - x;
+                }
+                if (y + height > overlayCanvas.height) {
+                    height = overlayCanvas.height - y;
+                }
             }
             return { x, y, width, height };
         }
@@ -1318,8 +1284,10 @@
          * Crop Function
          ****************************************************/
         function performCrop(rect) {
-            // We have rect.x, rect.y, rect.width, rect.height in overlayCanvas coords
-            // Convert to natural image coords
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            // We scale rect.x,y,w,h from overlayCanvas to actual image
             const scaleX = uploadedImage.naturalWidth / overlayCanvas.width;
             const scaleY = uploadedImage.naturalHeight / overlayCanvas.height;
 
@@ -1328,11 +1296,8 @@
             const cropWidth = rect.width * scaleX;
             const cropHeight = rect.height * scaleY;
 
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            canvas.width = Math.floor(cropWidth);
-            canvas.height = Math.floor(cropHeight);
-
+            canvas.width = cropWidth;
+            canvas.height = cropHeight;
             ctx.drawImage(
                 uploadedImage,
                 cropX,
@@ -1349,7 +1314,6 @@
             uploadedImage.src = croppedDataURL;
             imageDataURL = croppedDataURL;
 
-            // Re-adjust after load
             uploadedImage.onload = () => {
                 adjustCanvas();
                 clearCanvas();
@@ -1385,8 +1349,6 @@
 
             clearCanvas();
             rectangleTexts = {};
-
-            // For each user rectangle, run OCR
             for (let i = 0; i < userRectangles.length; i++) {
                 const r = userRectangles[i];
                 const text = await performOCROnRectangle(r);
@@ -1394,24 +1356,24 @@
             }
             handlesVisible = false; // Hide handles after OCR
             statusMessage.textContent = 'OCR complete. Click on highlighted areas to assign fields.';
-            redrawCanvas();
+            redrawCanvas(); 
         });
 
         async function performOCROnRectangle(rect) {
-            // rect is in overlayCanvas coords
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            // Convert from overlayCanvas space to full image space
             const scaleX = uploadedImage.naturalWidth / overlayCanvas.width;
             const scaleY = uploadedImage.naturalHeight / overlayCanvas.height;
 
-            const cropX = Math.floor(rect.x * scaleX);
-            const cropY = Math.floor(rect.y * scaleY);
-            const cropWidth = Math.floor(rect.width * scaleX);
-            const cropHeight = Math.floor(rect.height * scaleY);
+            const cropX = rect.x * scaleX;
+            const cropY = rect.y * scaleY;
+            const cropWidth = rect.width * scaleX;
+            const cropHeight = rect.height * scaleY;
 
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
             canvas.width = cropWidth;
             canvas.height = cropHeight;
-
             ctx.drawImage(
                 uploadedImage,
                 cropX,
@@ -1423,7 +1385,6 @@
                 cropWidth,
                 cropHeight
             );
-
             const croppedDataURL = canvas.toDataURL();
 
             const worker = await Tesseract.createWorker({
@@ -1437,16 +1398,14 @@
             return data.text.trim();
         }
 
-        // Click on a highlighted area to assign text to a field
+        // Click to assign text
         overlayCanvas.addEventListener('click', (e) => {
             if (userRectangles.length === 0) return;
-            const { x, y } = getCanvasCoordinates(e);
+            const { x, y } = getCanvasCoords(e);
+
             for (let i = 0; i < userRectangles.length; i++) {
                 const r = userRectangles[i];
-                if (
-                    x >= r.x && x <= r.x + r.width &&
-                    y >= r.y && y <= r.y + r.height
-                ) {
+                if (x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height) {
                     const text = rectangleTexts[i] || '';
                     if (text === '') {
                         alert('No text extracted for this area.');
@@ -1458,6 +1417,7 @@
             }
         });
 
+        // Helper to assign text
         function assignTextToField(text) {
             const choice = prompt(
                 `Choose a field to assign this text:\n` +
@@ -1585,13 +1545,14 @@
         function applyPostprocessing() {
             if (!uploadedImage.src) return;
             const ppCtx = postprocessingCanvas.getContext('2d');
-            // Clear the postprocessing canvas
-            ppCtx.setTransform(1, 0, 0, 1, 0, 0);
             ppCtx.clearRect(0, 0, postprocessingCanvas.width, postprocessingCanvas.height);
-
-            // Draw the uploaded image scaled to the postprocessing canvas size
-            // Then apply pixel-level changes
-            ppCtx.drawImage(uploadedImage, 0, 0, uploadedImage.clientWidth, uploadedImage.clientHeight);
+            ppCtx.drawImage(
+                uploadedImage,
+                0,
+                0,
+                uploadedImage.clientWidth,
+                uploadedImage.clientHeight
+            );
 
             let imageData = ppCtx.getImageData(0, 0, postprocessingCanvas.width, postprocessingCanvas.height);
             let data = imageData.data;
@@ -1617,7 +1578,6 @@
             // Clarity (Contrast)
             const clarityValue = parseInt(claritySlider.value, 10);
             if (clarityValue !== 50) {
-                // 50 is the baseline -> no change
                 const contrast = clarityValue / 50;
                 for (let i = 0; i < data.length; i += 4) {
                     data[i] = ((data[i] - 128) * contrast) + 128;
@@ -1639,7 +1599,6 @@
                 }
             }
 
-            // Put image data back before optional sharpening
             ppCtx.putImageData(imageData, 0, 0);
 
             // Sharpening
@@ -1697,7 +1656,7 @@
             ctx.putImageData(imageData, 0, 0);
         }
 
-        // Postprocessing Controls
+        // Postprocessing Controls listeners
         grayscaleCheckbox.addEventListener('change', applyPostprocessing);
         highlightSlider.addEventListener('input', applyPostprocessing);
         claritySlider.addEventListener('input', applyPostprocessing);
