@@ -8,8 +8,10 @@
        This helps the layout to fit to the device width and allow vertical scrolling 
     -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <!-- Tesseract.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+
     <style>
         /*****************************************
          * General / Page-Level Styles
@@ -24,9 +26,9 @@
             flex-direction: column;
             /* 
                Allow vertical scrolling, especially on mobile 
-               (We remove any forced 'height: 100vh' to let content scroll naturally)
+               (No forced 100vh so content can scroll naturally)
             */
-            overflow-y: auto; 
+            overflow-y: auto;
         }
 
         h1 {
@@ -99,7 +101,7 @@
         }
 
         /*****************************************
-         * "Open Editor" Button (formerly hamburger)
+         * "Open Editor" Button
          *****************************************/
         #openEditorBtn {
             display: none; /* Hidden until an image is uploaded */
@@ -124,14 +126,10 @@
          *****************************************/
         #imageContainer {
             position: relative;
-            display: none; /* Will show once image is loaded */
+            display: none; /* Shown once an image is loaded */
             margin: 0 auto;
             width: 100%;
             max-width: 600px;
-            /* 
-               Let the image container adapt to screen width 
-               but not exceed 600px for large screens 
-            */
         }
 
         /* Make sure the uploaded image fits the container width on mobile */
@@ -238,7 +236,7 @@
          * Editor Modal (replaces side menu)
          *****************************************/
         #editorModal {
-            display: none; /* Hidden until user clicks "Open Editor" */
+            display: none; /* Ensures modal is hidden on page launch */
             position: fixed;
             z-index: 9999;
             left: 0;
@@ -246,15 +244,11 @@
             width: 100vw;
             height: 100vh;
             background-color: rgba(0, 0, 0, 0.9);
-            /* 
-               We use flex so we can position the toolbar on top (column)
-               and the rest (image) below.
-            */
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: flex-start;
-            overflow-y: auto; /* Allows vertical scroll if needed on smaller screens */
+            overflow-y: auto; /* Allows vertical scroll if needed on small screens */
         }
 
         /* Horizontal toolbar for all the old "side menu" controls */
@@ -269,10 +263,7 @@
             padding: 10px;
         }
 
-        /* 
-           Buttons inside the editor toolbar 
-           (These were originally side menu buttons) 
-        */
+        /* Buttons inside the editor toolbar */
         #editorToolbar button {
             padding: 12px 20px;
             margin: 4px;
@@ -288,12 +279,12 @@
             white-space: nowrap;
         }
 
-        /* Hover styles for the toolbar buttons */
+        /* Hover styles for toolbar buttons */
         #editorToolbar button:hover {
             transform: translateY(-2px);
         }
 
-        /* Specific Button Colors (carried over from the side menu) */
+        /* Specific Button Colors (carried over from side menu) */
         #draw-button {
             background-color: #005cb8; 
         }
@@ -406,23 +397,18 @@
             position: relative;
         }
 
-        /* 
-           We'll re-use #imageContainer's elements 
-           but position them inside #editorImageContainer 
-        */
-
         /*****************************************
-         * Info Modal (unchanged except z-index if needed)
+         * Info Modal
          *****************************************/
         #infoModal {
             display: none; /* Hidden by default */
-            position: fixed; /* Stay in place */
-            z-index: 1500; /* Above standard content but below #editorModal if needed */
+            position: fixed; 
+            z-index: 1500; 
             left: 0;
             top: 0;
             width: 100%;
             height: 100%;
-            overflow: auto; /* Enable scroll if needed */
+            overflow: auto; 
             background-color: rgba(0, 0, 0, 0.5);
         }
 
@@ -478,8 +464,6 @@
                 font-size: 14px;
                 padding: 10px 15px;
             }
-            /* Increase handle size for better touch on mobile */
-            /* We'll do so in script, but can also set here if desired */
         }
     </style>
 </head>
@@ -515,7 +499,7 @@
             <!-- The button that opens the Editor Modal (hidden until an image is uploaded) -->
             <button id="openEditorBtn">Open Editor</button>
 
-            <!-- Our original image container (will be moved to the Editor Modal for editing) -->
+            <!-- Original image container, used within the editor modal -->
             <div id="imageContainer">
                 <img id="uploadedImage" alt="Uploaded Image">
                 <!-- Postprocessing Canvas -->
@@ -560,7 +544,7 @@
         </tbody>
     </table>
 
-    <!-- Editor Modal (contains the old side menu controls as a horizontal toolbar) -->
+    <!-- Editor Modal (contains the old side menu controls in a horizontal toolbar) -->
     <div id="editorModal">
         <div id="editorToolbar">
             <!-- Buttons from the original side menu, now in a horizontal scroll bar -->
@@ -576,7 +560,7 @@
             <button id="info-button" class="side-menu-button">Info</button>
         </div>
 
-        <!-- Postprocessing Controls (show/hide via postprocessing-button) -->
+        <!-- Postprocessing Controls -->
         <div class="postprocessing-controls" id="postprocessing-controls">
             <label for="grayscale">Grayscale:</label>
             <input type="checkbox" id="grayscale">
@@ -594,16 +578,8 @@
             <input type="range" id="sharpening" min="0" max="100" value="0">
         </div>
 
-        <!-- The same #imageContainer is effectively "moved" in the DOM once we open the modal.
-             For simplicity, we'll just physically place it in the main page but show/hide 
-             or re-parent it into #editorImageContainer. 
-             However, to avoid duplication, we'll re-use the existing #imageContainer elements. -->
-
-        <!-- A container in the modal for the image to be visible in full (centered, no scrolling) -->
-        <div id="editorImageContainer">
-            <!-- We will dynamically re-parent the #imageContainer into here via JS,
-                 so no duplication of the canvas or image is needed. -->
-        </div>
+        <!-- Container in the modal for the image (re-parented #imageContainer) -->
+        <div id="editorImageContainer"></div>
     </div>
 
     <script>
@@ -623,7 +599,7 @@
         const openEditorBtn = document.getElementById('openEditorBtn');
         const editorImageContainer = document.getElementById('editorImageContainer');
 
-        // Toolbar Buttons (were side menu)
+        // Toolbar Buttons
         const drawButton = document.getElementById('draw-button');
         const undoDrawButton = document.getElementById('undo-draw-button');
         const cropButton = document.getElementById('crop-button');
@@ -673,27 +649,25 @@
         let currentRect = null;
         let moveOffset = { x: 0, y: 0 }; 
         let HANDLE_SIZE = 10;
-        /* 
+        /*
            We keep exactly 2 handle types:
-           'sw' = single anchor for RESIZE (bottom-left)
-           'ne' = separate anchor for MOVE (top-right)
-           We do NOT combine them.
+           'sw' = single anchor for RESIZE
+           'ne' = separate anchor for MOVE
         */
         const HANDLE_TYPES = ['sw', 'ne'];
         let resizeTarget = null;
         let handlesVisible = true;
-        let initialRect = null; // Store the rectangle at the start of resizing
+        let initialRect = null;
 
         /*****************************************************************
          * Editor Modal Logic
          *****************************************************************/
-        // Show the "Open Editor" button only after user uploads an image.
-        // Then, once clicked, move #imageContainer into the editor modal for editing.
+        // Only open editor modal after user clicks "Open Editor"
         openEditorBtn.addEventListener('click', () => {
             // Show the editor modal
             editorModal.style.display = 'flex';
 
-            // Move the actual imageContainer DOM node to the modal area
+            // Move the actual imageContainer DOM node into the modal area
             editorImageContainer.appendChild(imageContainer);
 
             // Ensure imageContainer is displayed if an image is loaded
@@ -701,9 +675,6 @@
                 imageContainer.style.display = 'block';
             }
         });
-
-        // We'll hide the editor modal if user clicks outside, or add a close button if desired
-        // For now, we'll keep it open. If you'd like a close button on the modal, you can add one.
 
         /*****************************************************************
          * Info Modal Logic
@@ -907,7 +878,6 @@
         overlayCanvas.addEventListener('mouseup', handlePointerUp);
 
         overlayCanvas.addEventListener('touchstart', (e) => {
-            // For mobile, we replicate the logic
             if (e.touches.length === 1) {
                 e.clientX = e.touches[0].clientX;
                 e.clientY = e.touches[0].clientY;
@@ -937,7 +907,7 @@
             const handleInfo = getHandleAt(x, y);
             if (handleInfo) {
                 if (handleInfo.type === 'sw') {
-                    // Single anchor for resizing in all directions
+                    // Single anchor for resizing
                     isResizing = true;
                     activeHandle = 'sw';
                     resizeTarget = (handleInfo.rect === 'crop' ? 'crop' : handleInfo.index);
@@ -956,15 +926,15 @@
                         moveOffset.x = x - cropRect.x;
                         moveOffset.y = y - cropRect.y;
                     } else {
-                        const rectToMove = userRectangles[resizeTarget];
-                        moveOffset.x = x - rectToMove.x;
-                        moveOffset.y = y - rectToMove.y;
+                        const r = userRectangles[resizeTarget];
+                        moveOffset.x = x - r.x;
+                        moveOffset.y = y - r.y;
                     }
                 }
                 return;
             }
 
-            // If no handle was clicked, we either draw or define a new crop rect
+            // If no handle was clicked, either draw or define new crop rect
             if (isDrawingMode || (isCroppingMode && !cropRect)) {
                 isDrawing = true;
                 startX = x;
@@ -995,7 +965,7 @@
                 currentRect.width = x - startX;
                 currentRect.height = y - startY;
                 redrawCanvas();
-                // Show a different color if in draw mode vs. crop mode
+                // Different color for draw vs. crop
                 const style = isDrawingMode 
                     ? { fill: 'rgba(255, 0, 0, 0.3)', stroke: 'red' } 
                     : { fill: 'rgba(0, 150, 255, 0.25)', stroke: 'rgba(0, 150, 255, 1)' };
@@ -1026,7 +996,6 @@
                     statusMessage.textContent = `${userRectangles.length} OCR rectangle(s) drawn.`;
                     undoDrawButton.style.display = (userRectangles.length > 0 ? 'block' : 'none');
                 } else if (isCroppingMode) {
-                    // If we already have a cropRect, we overwrite it
                     cropRect = normalizedRect;
                     statusMessage.textContent = 'Crop rectangle set. Resize or confirm crop.';
                     confirmCropButton.style.display = 'block';
@@ -1037,7 +1006,7 @@
         }
 
         /*****************************************************************
-         * Separate Move Function
+         * Move Rectangle
          *****************************************************************/
         function moveRectangle(x, y) {
             if (resizeTarget === 'crop') {
@@ -1254,32 +1223,25 @@
 
         function redrawCanvas() {
             clearCanvas();
-            const ctx = overlayCanvas.getContext('2d');
-
             // Draw existing user rectangles
             userRectangles.forEach((rect, idx) => {
-                // If we've done OCR, fill = light blue, else red
                 const fillStyle = rectangleTexts[idx] 
                     ? 'rgba(0, 150, 255, 0.3)' 
                     : 'rgba(255, 0, 0, 0.3)';
                 const strokeStyle = rectangleTexts[idx] ? 'blue' : 'red';
                 drawRectangle(rect, fillStyle, strokeStyle);
-
-                // Draw handle(s) if visible
                 if (handlesVisible) {
                     drawHandles(rect, idx);
                 }
             });
-
-            // Draw crop rectangle
+            // Draw crop rectangle if any
             if (cropRect) {
                 drawRectangle(cropRect, 'rgba(0, 150, 255, 0.25)', 'rgba(0, 150, 255, 1)');
                 if (handlesVisible) {
                     drawHandles(cropRect, 'crop');
                 }
             }
-
-            // Draw the "current" rectangle if in the process of drawing
+            // Draw current rectangle if in the process of drawing
             if (currentRect) {
                 const style = isDrawingMode
                     ? { fill: 'rgba(255, 0, 0, 0.3)', stroke: 'red' }
@@ -1297,7 +1259,6 @@
             ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
         }
 
-        // Return positions of the single resize handle (SW) and single move handle (NE)
         function getHandlePositions(rect) {
             return {
                 sw: { x: rect.x,              y: rect.y + rect.height }, // bottom-left
@@ -1310,8 +1271,6 @@
             const handles = getHandlePositions(rect);
             ctx.fillStyle = '#e0e0e0';
             ctx.strokeStyle = '#000';
-
-            // 'sw' = resize handle, 'ne' = move handle
             ['sw', 'ne'].forEach(key => {
                 const h = handles[key];
                 ctx.fillRect(h.x - HANDLE_SIZE / 2, h.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
@@ -1319,9 +1278,8 @@
             });
         }
 
-        // Checks if (x,y) is within the bounding box of the 'sw' or 'ne' handle
         function getHandleAt(x, y) {
-            // Check cropRect first if it exists
+            // Check cropRect first
             if (cropRect) {
                 const handle = getHandlePositions(cropRect);
                 for (let type of HANDLE_TYPES) {
@@ -1390,7 +1348,7 @@
             ctx.drawImage(uploadedImage, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
             const croppedDataURL = canvas.toDataURL();
 
-            // Update the main image with the cropped image
+            // Update the main image
             uploadedImage.src = croppedDataURL;
             imageDataURL = croppedDataURL;
 
@@ -1411,33 +1369,20 @@
 
         /*****************************************************************
          * Resize Rectangle
-         * Single anchor ('sw') must handle expansions in all directions 
-         * by letting normalizeRect handle negative w/h
          *****************************************************************/
         function resizeRectangle(mouseX, mouseY) {
             if (!handlesVisible || !activeHandle || !initialRect) return;
-            // 'sw' anchor modifies x, y, width, height from the bottom-left corner
-            // 'ne' is for moving only, so no resizing logic for 'ne'.
             if (resizeTarget === null) return;
 
+            // 'sw' anchor modifies from bottom-left corner
             if (activeHandle === 'sw') {
                 if (resizeTarget === 'crop') {
                     if (!cropRect) return;
-                    // The bottom-left corner is initialRect.x, initialRect.y+initialRect.height
-                    // We compute new x,y so that bottom-left corner moves to (mouseX, mouseY)
                     const dx = initialRect.x - mouseX;
                     const dy = (initialRect.y + initialRect.height) - mouseY;
-
-                    // new width, new height
                     const newWidth = initialRect.width + dx;
                     const newHeight = initialRect.height + dy;
 
-                    cropRect.x = mouseX;
-                    // y for the rect's top is initialRect.y
-                    // but we are effectively moving the bottom edge
-                    cropRect.y = initialRect.y; 
-                    // We shift the "y" upward or downward depending on the difference
-                    // Actually, a simpler approach is to keep the top fixed:
                     const top = initialRect.y;
                     const bottom = top + initialRect.height;
                     const newBottom = mouseY;
@@ -1457,11 +1402,9 @@
 
                     const dx = initialRect.x - mouseX;
                     const dy = (initialRect.y + initialRect.height) - mouseY;
-
                     const newWidth = initialRect.width + dx;
                     const newHeight = initialRect.height + dy;
 
-                    // Keep top side fixed, adjust bottom side
                     const top = initialRect.y;
                     const bottom = top + initialRect.height;
                     const newBottom = mouseY;
@@ -1479,7 +1422,7 @@
         }
 
         /*****************************************************************
-         * Prevent Scrolling When Touching Canvas in Draw/Crop Mode on Mobile
+         * Prevent Scrolling When Touching Canvas in Draw/Crop Mode (Mobile)
          *****************************************************************/
         document.body.addEventListener('touchstart', function(e) {
             if ((isDrawingMode || isCroppingMode) && e.target === overlayCanvas) {
@@ -1549,6 +1492,7 @@
             if (highlightValue !== 0) {
                 const factor = highlightValue * 0.5;
                 for (let i = 0; i < data.length; i += 4) {
+                    // Increase brightness only on lighter pixels
                     if (data[i] > 50 || data[i+1] > 50 || data[i+2] > 50) {
                         data[i]   += factor;
                         data[i+1] += factor;
@@ -1577,7 +1521,7 @@
             const width = imageData.width;
             const height = imageData.height;
 
-            // A simple sharpen kernel
+            // Simple sharpening kernel
             const kernel = [
                 0, -1,  0,
                -1,  5, -1,
