@@ -631,7 +631,7 @@
         let currentRect = null;
         let moveOffset = { x: 0, y: 0 }; // Offset for moving
         let HANDLE_SIZE = 10;
-        const HANDLE_TYPES = ['sw', 'ne']; // Only bottom-left and top-right
+        const HANDLE_TYPES = ['resize', 'move']; // Single handles
         let resizeTarget = null;
         let handlesVisible = true;
         let initialRect = null; // Store the initial rectangle during resize
@@ -1285,8 +1285,8 @@
         // Function to Get Handle Positions Relative to the Rectangle
         function getHandlePositions(rect) {
             return {
-                sw: { x: rect.x, y: rect.y + rect.height }, // Bottom-Left for Resizing
-                ne: { x: rect.x + rect.width, y: rect.y }  // Top-Right for Moving
+                resize: { x: rect.x, y: rect.y + rect.height }, // Bottom-Left for Resizing
+                move: { x: rect.x + rect.width, y: rect.y }    // Top-Right for Moving
             };
         }
 
@@ -1296,14 +1296,14 @@
             const handles = getHandlePositions(rect);
             ctx.fillStyle = '#e0e0e0';
             ctx.strokeStyle = '#000';
-            // Draw bottom-left (resize) handle
-            const sw = handles['sw'];
-            ctx.fillRect(sw.x - HANDLE_SIZE / 2, sw.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
-            ctx.strokeRect(sw.x - HANDLE_SIZE / 2, sw.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
-            // Draw top-right (move) handle
-            const ne = handles['ne'];
-            ctx.fillRect(ne.x - HANDLE_SIZE / 2, ne.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
-            ctx.strokeRect(ne.x - HANDLE_SIZE / 2, ne.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
+            // Draw resize handle (bottom-left)
+            const resize = handles['resize'];
+            ctx.fillRect(resize.x - HANDLE_SIZE / 2, resize.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
+            ctx.strokeRect(resize.x - HANDLE_SIZE / 2, resize.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
+            // Draw move handle (top-right)
+            const move = handles['move'];
+            ctx.fillRect(move.x - HANDLE_SIZE / 2, move.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
+            ctx.strokeRect(move.x - HANDLE_SIZE / 2, move.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
         }
 
         // Check if Point is Inside Any Handle of Any Rectangle
@@ -1311,23 +1311,23 @@
             // Check cropRect first
             if (cropRect) {
                 const handle = getHandlePositions(cropRect);
-                // Check bottom-left resize handle
-                const sw = handle['sw'];
+                // Check resize handle (bottom-left)
+                const resize = handle['resize'];
                 if (
-                    x >= sw.x - HANDLE_SIZE / 2 &&
-                    x <= sw.x + HANDLE_SIZE / 2 &&
-                    y >= sw.y - HANDLE_SIZE / 2 &&
-                    y <= sw.y + HANDLE_SIZE / 2
+                    x >= resize.x - HANDLE_SIZE / 2 &&
+                    x <= resize.x + HANDLE_SIZE / 2 &&
+                    y >= resize.y - HANDLE_SIZE / 2 &&
+                    y <= resize.y + HANDLE_SIZE / 2
                 ) {
                     return { type: 'resize', index: 'crop' };
                 }
-                // Check top-right move handle
-                const ne = handle['ne'];
+                // Check move handle (top-right)
+                const move = handle['move'];
                 if (
-                    x >= ne.x - HANDLE_SIZE / 2 &&
-                    x <= ne.x + HANDLE_SIZE / 2 &&
-                    y >= ne.y - HANDLE_SIZE / 2 &&
-                    y <= ne.y + HANDLE_SIZE / 2
+                    x >= move.x - HANDLE_SIZE / 2 &&
+                    x <= move.x + HANDLE_SIZE / 2 &&
+                    y >= move.y - HANDLE_SIZE / 2 &&
+                    y <= move.y + HANDLE_SIZE / 2
                 ) {
                     return { type: 'move', index: 'crop' };
                 }
@@ -1337,23 +1337,23 @@
             for (let i = 0; i < userRectangles.length; i++) {
                 const rect = userRectangles[i];
                 const handles = getHandlePositions(rect);
-                // Check bottom-left resize handle
-                const sw = handles['sw'];
+                // Check resize handle (bottom-left)
+                const resize = handles['resize'];
                 if (
-                    x >= sw.x - HANDLE_SIZE / 2 &&
-                    x <= sw.x + HANDLE_SIZE / 2 &&
-                    y >= sw.y - HANDLE_SIZE / 2 &&
-                    y <= sw.y + HANDLE_SIZE / 2
+                    x >= resize.x - HANDLE_SIZE / 2 &&
+                    x <= resize.x + HANDLE_SIZE / 2 &&
+                    y >= resize.y - HANDLE_SIZE / 2 &&
+                    y <= resize.y + HANDLE_SIZE / 2
                 ) {
                     return { type: 'resize', index: i };
                 }
-                // Check top-right move handle
-                const ne = handles['ne'];
+                // Check move handle (top-right)
+                const move = handles['move'];
                 if (
-                    x >= ne.x - HANDLE_SIZE / 2 &&
-                    x <= ne.x + HANDLE_SIZE / 2 &&
-                    y >= ne.y - HANDLE_SIZE / 2 &&
-                    y <= ne.y + HANDLE_SIZE / 2
+                    x >= move.x - HANDLE_SIZE / 2 &&
+                    x <= move.x + HANDLE_SIZE / 2 &&
+                    y >= move.y - HANDLE_SIZE / 2 &&
+                    y <= move.y + HANDLE_SIZE / 2
                 ) {
                     return { type: 'move', index: i };
                 }
@@ -1422,42 +1422,58 @@
             };
         }
 
-        // Function to Resize Rectangle
+        // Function to Resize Rectangle (Supports All Directions)
         function resizeRectangleModal(x, y) {
             // Prevent resizing if handles are hidden
             if (!handlesVisible) return;
 
+            let targetRect;
             if (resizeTarget === 'crop') {
-                if (!cropRect || !activeHandle || !initialRect) return;
-                // Resizing from bottom-left
-                const newX = x;
-                const newY = y;
-                const newWidth = initialRect.width + (initialRect.x - newX);
-                const newHeight = initialRect.height + (initialRect.y - newY);
-                if (newWidth > 20 && newHeight > 20) { // Minimum size constraint
-                    cropRect.x = newX;
-                    cropRect.y = newY;
-                    cropRect.width = newWidth;
-                    cropRect.height = newHeight;
-                }
+                targetRect = cropRect;
+            } else {
+                targetRect = userRectangles[resizeTarget];
+            }
 
-                cropRect = normalizeRect(cropRect);
-            } else if (typeof resizeTarget === 'number') {
-                const rect = userRectangles[resizeTarget];
-                if (!rect || !activeHandle || !initialRect) return;
-                // Resizing from bottom-left
-                const newX = x;
-                const newY = y;
-                const newWidth = initialRect.width + (initialRect.x - newX);
-                const newHeight = initialRect.height + (initialRect.y - newY);
-                if (newWidth > 20 && newHeight > 20) { // Minimum size constraint
-                    rect.x = newX;
-                    rect.y = newY;
-                    rect.width = newWidth;
-                    rect.height = newHeight;
-                }
+            if (!targetRect || !initialRect) return;
 
-                userRectangles[resizeTarget] = normalizeRect(rect);
+            // Calculate the change in position
+            const deltaX = x - (initialRect.x + initialRect.width);
+            const deltaY = y - (initialRect.y + initialRect.height);
+
+            // Update width and height based on drag direction
+            let newWidth = initialRect.width + deltaX;
+            let newHeight = initialRect.height + deltaY;
+
+            // Allow negative widths and heights for flexible resizing
+            // Normalize the rectangle after updating
+            let newX = initialRect.x;
+            let newY = initialRect.y;
+
+            if (newWidth < 0) {
+                newX += newWidth;
+                newWidth = Math.abs(newWidth);
+            }
+
+            if (newHeight < 0) {
+                newY += newHeight;
+                newHeight = Math.abs(newHeight);
+            }
+
+            // Apply minimum size constraints
+            newWidth = Math.max(newWidth, 20);
+            newHeight = Math.max(newHeight, 20);
+
+            // Update the rectangle
+            targetRect.x = newX;
+            targetRect.y = newY;
+            targetRect.width = newWidth;
+            targetRect.height = newHeight;
+
+            // Normalize to ensure it stays within image boundaries
+            if (resizeTarget === 'crop') {
+                cropRect = normalizeRect(targetRect);
+            } else {
+                userRectangles[resizeTarget] = normalizeRect(targetRect);
             }
         }
 
