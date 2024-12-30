@@ -419,6 +419,12 @@
             color: #fff;
             text-decoration: none;
         }
+
+        /* Invisible Hit Area for Anchors */
+        .hit-area {
+            position: absolute;
+            background: transparent;
+        }
     </style>
 </head>
 <body>
@@ -509,6 +515,7 @@
                 <img id="uploadedImageModal" alt="Uploaded Image">
                 <!-- Postprocessing Canvas -->
                 <canvas id="postprocessingCanvasModal"></canvas>
+                <!-- Overlay Canvas -->
                 <canvas id="overlayCanvasModal"></canvas>
             </div>
         </div>
@@ -598,7 +605,7 @@
         let currentRect = null;
         let moveOffset = { x: 0, y: 0 }; // Offset for moving
         let HANDLE_SIZE = 10;
-        const HANDLE_TYPES = ['sw', 'ne']; // Only bottom-left and top-right
+        const HANDLE_TYPES = ['sw', 'ne']; // Only bottom-left (resize) and top-right (move)
         let resizeTarget = null;
         let handlesVisible = true;
         let initialRect = null; // Store the initial rectangle during resize
@@ -744,7 +751,7 @@
             isDrawingMode = !isDrawingMode;
             if (isDrawingMode) {
                 drawButton.textContent = 'Cancel Draw';
-                statusMessage.textContent = 'Draw mode activated. Click and drag on the image to draw rectangles for OCR.';
+                statusMessage.textContent = 'Draw mode activated. Tap and drag on the image to draw rectangles for OCR.';
                 cropRect = null;
                 confirmCropButton.style.display = 'none';
                 handlesVisible = true;
@@ -771,7 +778,7 @@
             isCroppingMode = !isCroppingMode;
             if (isCroppingMode) {
                 cropButton.textContent = 'Cancel Crop';
-                statusMessage.textContent = 'Crop mode activated. Click and drag on the image to select the crop area.';
+                statusMessage.textContent = 'Crop mode activated. Tap and drag on the image to select the crop area.';
                 cropRect = null;
                 confirmCropButton.style.display = 'none';
                 handlesVisible = true;
@@ -848,6 +855,7 @@
                 return;
             }
 
+            // Prevent initiating a new draw if tapping near an existing anchor
             if (isDrawingMode || (isCroppingMode && !cropRect)) {
                 isDrawing = true;
                 startX = x;
@@ -960,6 +968,7 @@
                 return;
             }
 
+            // Prevent initiating a new draw if tapping near an existing anchor
             if (isDrawingMode || (isCroppingMode && !cropRect)) {
                 isDrawing = true;
                 startX = x;
@@ -1069,7 +1078,7 @@
             // Hide resize handles after OCR
             handlesVisible = false;
 
-            statusMessage.textContent = 'OCR complete. Click on highlighted areas to assign fields.';
+            statusMessage.textContent = 'OCR complete. Tap on highlighted areas to assign fields.';
             redrawCanvasModal(); // Redraw rectangles in blue
         });
 
@@ -1252,8 +1261,8 @@
         // Function to Get Handle Positions Relative to the Rectangle
         function getHandlePositions(rect) {
             return {
-                sw: { x: rect.x, y: rect.y + rect.height }, // Bottom-Left
-                ne: { x: rect.x + rect.width, y: rect.y }  // Top-Right
+                sw: { x: rect.x, y: rect.y + rect.height }, // Bottom-Left for Resizing
+                ne: { x: rect.x + rect.width, y: rect.y }  // Top-Right for Moving
             };
         }
 
@@ -1275,26 +1284,29 @@
 
         // Check if Point is Inside Any Handle of Any Rectangle
         function getHandleAtModal(x, y) {
+            // Define a larger clickable area (hit margin) around handles
+            const HIT_MARGIN = 20; // Adjust as needed for better usability on mobile
+
             // Check cropRect first
             if (cropRect) {
                 const handle = getHandlePositions(cropRect);
                 // Check bottom-left resize handle
                 const sw = handle['sw'];
                 if (
-                    x >= sw.x - HANDLE_SIZE / 2 &&
-                    x <= sw.x + HANDLE_SIZE / 2 &&
-                    y >= sw.y - HANDLE_SIZE / 2 &&
-                    y <= sw.y + HANDLE_SIZE / 2
+                    x >= sw.x - (HANDLE_SIZE / 2 + HIT_MARGIN) &&
+                    x <= sw.x + (HANDLE_SIZE / 2 + HIT_MARGIN) &&
+                    y >= sw.y - (HANDLE_SIZE / 2 + HIT_MARGIN) &&
+                    y <= sw.y + (HANDLE_SIZE / 2 + HIT_MARGIN)
                 ) {
                     return { type: 'resize', index: 'crop' };
                 }
                 // Check top-right move handle
                 const ne = handle['ne'];
                 if (
-                    x >= ne.x - HANDLE_SIZE / 2 &&
-                    x <= ne.x + HANDLE_SIZE / 2 &&
-                    y >= ne.y - HANDLE_SIZE / 2 &&
-                    y <= ne.y + HANDLE_SIZE / 2
+                    x >= ne.x - (HANDLE_SIZE / 2 + HIT_MARGIN) &&
+                    x <= ne.x + (HANDLE_SIZE / 2 + HIT_MARGIN) &&
+                    y >= ne.y - (HANDLE_SIZE / 2 + HIT_MARGIN) &&
+                    y <= ne.y + (HANDLE_SIZE / 2 + HIT_MARGIN)
                 ) {
                     return { type: 'move', index: 'crop' };
                 }
@@ -1307,20 +1319,20 @@
                 // Check bottom-left resize handle
                 const sw = handles['sw'];
                 if (
-                    x >= sw.x - HANDLE_SIZE / 2 &&
-                    x <= sw.x + HANDLE_SIZE / 2 &&
-                    y >= sw.y - HANDLE_SIZE / 2 &&
-                    y <= sw.y + HANDLE_SIZE / 2
+                    x >= sw.x - (HANDLE_SIZE / 2 + HIT_MARGIN) &&
+                    x <= sw.x + (HANDLE_SIZE / 2 + HIT_MARGIN) &&
+                    y >= sw.y - (HANDLE_SIZE / 2 + HIT_MARGIN) &&
+                    y <= sw.y + (HANDLE_SIZE / 2 + HIT_MARGIN)
                 ) {
                     return { type: 'resize', index: i };
                 }
                 // Check top-right move handle
                 const ne = handles['ne'];
                 if (
-                    x >= ne.x - HANDLE_SIZE / 2 &&
-                    x <= ne.x + HANDLE_SIZE / 2 &&
-                    y >= ne.y - HANDLE_SIZE / 2 &&
-                    y <= ne.y + HANDLE_SIZE / 2
+                    x >= ne.x - (HANDLE_SIZE / 2 + HIT_MARGIN) &&
+                    x <= ne.x + (HANDLE_SIZE / 2 + HIT_MARGIN) &&
+                    y >= ne.y - (HANDLE_SIZE / 2 + HIT_MARGIN) &&
+                    y <= ne.y + (HANDLE_SIZE / 2 + HIT_MARGIN)
                 ) {
                     return { type: 'move', index: i };
                 }
