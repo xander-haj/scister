@@ -428,6 +428,8 @@
             transform: translate(-50%, -50%);
             /* Transparent background */
             background-color: transparent;
+            /* Ensure hitboxes are on top */
+            z-index: 15;
         }
 
         /* Positioning Hitboxes */
@@ -551,7 +553,7 @@
                <li> Use the toolbar to select specific areas for OCR or to crop the image. </li>
                <li> After drawing a crop rectangle, click "Confirm Crop" to apply the crop. </li>
                <li> Recognized words within drawn rectangles will be highlighted in light blue on the image. </li>
-               <li> Click on a highlighted block to assign the concatenated text to one of the input fields. </li>
+               <li> Tap on a highlighted block to assign the concatenated text to one of the input fields. </li>
                <li> Once done, press "Update Table" to add a row to the table. </li>
                <li> Process multiple images by clearing the image and fields. </li>
                <li> Finally, press "Save CSV" to download all collected data. </li>
@@ -1427,7 +1429,7 @@
 
             if (resizeTarget === 'crop') {
                 if (!cropRect || !activeHandle || !initialRect) return;
-                // Only 'resize' is applicable at 'sw' (bottom-left)
+                // Resizing from bottom-left
                 const newX = x;
                 const newY = y;
                 const newWidth = initialRect.width + (initialRect.x - newX);
@@ -1443,7 +1445,7 @@
             } else if (typeof resizeTarget === 'number') {
                 const rect = userRectangles[resizeTarget];
                 if (!rect || !activeHandle || !initialRect) return;
-                // Only 'resize' is applicable at 'sw' (bottom-left)
+                // Resizing from bottom-left
                 const newX = x;
                 const newY = y;
                 const newWidth = initialRect.width + (initialRect.x - newX);
