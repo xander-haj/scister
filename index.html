@@ -420,11 +420,27 @@
             text-decoration: none;
         }
 
-        /* Invisible Hit Area for Anchors */
-        .hit-area {
+        /* Invisible Hitboxes for Anchors */
+        .hitbox {
             position: absolute;
-            background: transparent;
+            width: 40px; /* Increased clickable area */
+            height: 40px; /* Increased clickable area */
+            transform: translate(-50%, -50%);
+            /* Transparent background */
+            background-color: transparent;
         }
+
+        /* Positioning Hitboxes */
+        .hitbox.resize {
+            left: 0; /* Bottom-Left */
+            top: 100%;
+        }
+
+        .hitbox.move {
+            left: 100%; /* Top-Right */
+            top: 0;
+        }
+
     </style>
 </head>
 <body>
@@ -517,6 +533,10 @@
                 <canvas id="postprocessingCanvasModal"></canvas>
                 <!-- Overlay Canvas -->
                 <canvas id="overlayCanvasModal"></canvas>
+
+                <!-- Invisible Hitboxes for Resize and Move -->
+                <div class="hitbox resize"></div> <!-- Bottom-Left for Resize -->
+                <div class="hitbox move"></div>   <!-- Top-Right for Move -->
             </div>
         </div>
     </div>
@@ -577,6 +597,10 @@
         const postprocessingCanvasModal = document.getElementById('postprocessingCanvasModal');
         const overlayCanvasModal = document.getElementById('overlayCanvasModal');
 
+        // Hitboxes
+        const resizeHitbox = document.querySelector('.hitbox.resize');
+        const moveHitbox = document.querySelector('.hitbox.move');
+
         // Info Modal Elements
         const infoModal = document.getElementById('infoModal');
         const infoModalClose = document.getElementById('infoModalClose');
@@ -605,7 +629,7 @@
         let currentRect = null;
         let moveOffset = { x: 0, y: 0 }; // Offset for moving
         let HANDLE_SIZE = 10;
-        const HANDLE_TYPES = ['sw', 'ne']; // Only bottom-left (resize) and top-right (move)
+        const HANDLE_TYPES = ['sw', 'ne']; // Only bottom-left and top-right
         let resizeTarget = null;
         let handlesVisible = true;
         let initialRect = null; // Store the initial rectangle during resize
@@ -855,7 +879,6 @@
                 return;
             }
 
-            // Prevent initiating a new draw if tapping near an existing anchor
             if (isDrawingMode || (isCroppingMode && !cropRect)) {
                 isDrawing = true;
                 startX = x;
@@ -968,7 +991,6 @@
                 return;
             }
 
-            // Prevent initiating a new draw if tapping near an existing anchor
             if (isDrawingMode || (isCroppingMode && !cropRect)) {
                 isDrawing = true;
                 startX = x;
@@ -1284,29 +1306,26 @@
 
         // Check if Point is Inside Any Handle of Any Rectangle
         function getHandleAtModal(x, y) {
-            // Define a larger clickable area (hit margin) around handles
-            const HIT_MARGIN = 20; // Adjust as needed for better usability on mobile
-
             // Check cropRect first
             if (cropRect) {
                 const handle = getHandlePositions(cropRect);
                 // Check bottom-left resize handle
                 const sw = handle['sw'];
                 if (
-                    x >= sw.x - (HANDLE_SIZE / 2 + HIT_MARGIN) &&
-                    x <= sw.x + (HANDLE_SIZE / 2 + HIT_MARGIN) &&
-                    y >= sw.y - (HANDLE_SIZE / 2 + HIT_MARGIN) &&
-                    y <= sw.y + (HANDLE_SIZE / 2 + HIT_MARGIN)
+                    x >= sw.x - HANDLE_SIZE / 2 &&
+                    x <= sw.x + HANDLE_SIZE / 2 &&
+                    y >= sw.y - HANDLE_SIZE / 2 &&
+                    y <= sw.y + HANDLE_SIZE / 2
                 ) {
                     return { type: 'resize', index: 'crop' };
                 }
                 // Check top-right move handle
                 const ne = handle['ne'];
                 if (
-                    x >= ne.x - (HANDLE_SIZE / 2 + HIT_MARGIN) &&
-                    x <= ne.x + (HANDLE_SIZE / 2 + HIT_MARGIN) &&
-                    y >= ne.y - (HANDLE_SIZE / 2 + HIT_MARGIN) &&
-                    y <= ne.y + (HANDLE_SIZE / 2 + HIT_MARGIN)
+                    x >= ne.x - HANDLE_SIZE / 2 &&
+                    x <= ne.x + HANDLE_SIZE / 2 &&
+                    y >= ne.y - HANDLE_SIZE / 2 &&
+                    y <= ne.y + HANDLE_SIZE / 2
                 ) {
                     return { type: 'move', index: 'crop' };
                 }
@@ -1319,20 +1338,20 @@
                 // Check bottom-left resize handle
                 const sw = handles['sw'];
                 if (
-                    x >= sw.x - (HANDLE_SIZE / 2 + HIT_MARGIN) &&
-                    x <= sw.x + (HANDLE_SIZE / 2 + HIT_MARGIN) &&
-                    y >= sw.y - (HANDLE_SIZE / 2 + HIT_MARGIN) &&
-                    y <= sw.y + (HANDLE_SIZE / 2 + HIT_MARGIN)
+                    x >= sw.x - HANDLE_SIZE / 2 &&
+                    x <= sw.x + HANDLE_SIZE / 2 &&
+                    y >= sw.y - HANDLE_SIZE / 2 &&
+                    y <= sw.y + HANDLE_SIZE / 2
                 ) {
                     return { type: 'resize', index: i };
                 }
                 // Check top-right move handle
                 const ne = handles['ne'];
                 if (
-                    x >= ne.x - (HANDLE_SIZE / 2 + HIT_MARGIN) &&
-                    x <= ne.x + (HANDLE_SIZE / 2 + HIT_MARGIN) &&
-                    y >= ne.y - (HANDLE_SIZE / 2 + HIT_MARGIN) &&
-                    y <= ne.y + (HANDLE_SIZE / 2 + HIT_MARGIN)
+                    x >= ne.x - HANDLE_SIZE / 2 &&
+                    x <= ne.x + HANDLE_SIZE / 2 &&
+                    y >= ne.y - HANDLE_SIZE / 2 &&
+                    y <= ne.y + HANDLE_SIZE / 2
                 ) {
                     return { type: 'move', index: i };
                 }
@@ -1669,6 +1688,50 @@
         // Already implemented above
 
         /* -------------------- End of OCR and Drawing Logic -------------------- */
+
+        /* -------------------- Hitbox Event Listeners -------------------- */
+
+        // Resize Hitbox Events
+        resizeHitbox.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const rect = overlayCanvasModal.getBoundingClientRect();
+            const touch = e.touches[0];
+            const x = (touch.clientX - rect.left);
+            const y = (touch.clientY - rect.top);
+            const handleInfo = getHandleAtModal(x, y);
+            if (handleInfo && handleInfo.type === 'resize') {
+                isResizing = true;
+                activeHandle = 'resize';
+                resizeTarget = handleInfo.index;
+                if (resizeTarget === 'crop') {
+                    initialRect = { ...cropRect };
+                } else {
+                    initialRect = { ...userRectangles[resizeTarget] };
+                }
+            }
+        }, { passive: false });
+
+        // Move Hitbox Events
+        moveHitbox.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const rect = overlayCanvasModal.getBoundingClientRect();
+            const touch = e.touches[0];
+            const x = (touch.clientX - rect.left);
+            const y = (touch.clientY - rect.top);
+            const handleInfo = getHandleAtModal(x, y);
+            if (handleInfo && handleInfo.type === 'move') {
+                isMoving = true;
+                resizeTarget = handleInfo.index;
+                if (resizeTarget === 'crop') {
+                    moveOffset.x = x - cropRect.x;
+                    moveOffset.y = y - cropRect.y;
+                } else {
+                    const rectToMove = userRectangles[resizeTarget];
+                    moveOffset.x = x - rectToMove.x;
+                    moveOffset.y = y - rectToMove.y;
+                }
+            }
+        }, { passive: false });
 
     </script>
 </body>
