@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <title>OCR Image Processor</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" integrity="sha512-Fo3rlrZj/k7ujTTXRU5K0cZK4A0m6+VFI/+rUlVhaE0ZQmVtLbK1Cr1+uqYC8efYwxn3XHj84C6cJtD5N0HlKw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <!-- Tesseract.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
     <style>
@@ -42,8 +44,30 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-start;
             padding: 10px;
+        }
+
+        /* Drag and Drop Zone */
+        .drop-zone {
+            border: 2px dashed #555;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            width: 80%;
+            max-width: 600px;
+            margin-bottom: 20px;
+        }
+
+        .drop-zone.dragover {
+            background-color: rgba(85, 85, 85, 0.3);
+        }
+
+        .drop-zone p {
+            margin: 0;
+            font-size: 16px;
         }
 
         /* Input Section */
@@ -62,30 +86,7 @@
         }
 
         #imageInput {
-            margin-bottom: 15px;
-            width: 80%;
-            padding: 10px;
-            border: none;
-            border-radius: 4px;
-            background-color: #2c2c2c;
-            color: #e0e0e0;
-            cursor: pointer;
-            font-size: 14px;
-        }
-
-        #imageInput::file-selector-button {
-            background-color: #555;
-            color: #e0e0e0;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-            font-size: 14px;
-        }
-
-        #imageInput::file-selector-button:hover {
-            background-color: #666;
+            display: none; /* Hidden, as we use drag-and-drop */
         }
 
         /* Open Editor Button */
@@ -101,6 +102,13 @@
             font-size: 16px;
             cursor: pointer;
             transition: background-color 0.3s, transform 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #openEditorBtn i {
+            margin-right: 8px;
         }
 
         #openEditorBtn:hover {
@@ -109,7 +117,7 @@
         }
 
         /* Editor Modal Styles */
-        #editorModal {
+        .modal {
             display: none; /* Hidden by default */
             position: fixed; /* Stay in place */
             z-index: 2000; /* Sit on top */
@@ -119,23 +127,29 @@
             height: 100%; /* Full height */
             overflow: hidden; /* Disable scroll */
             background-color: rgba(0, 0, 0, 0.8); /* Black with opacity */
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal.show {
+            opacity: 1;
         }
 
         /* Modal Content Box */
-        #editorModalContent {
+        #editorModalContent, #infoModalContent, .confirmation-content {
             position: relative;
             background-color: #1e1e1e;
             margin: 0;
             padding: 20px;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            max-width: 90%;
+            max-height: 90%;
             overflow-y: auto;
+            border-radius: 8px;
+            color: #e0e0e0;
         }
 
         /* Close Button */
-        #editorModalClose {
+        .modal .close {
             position: absolute;
             top: 15px;
             right: 25px;
@@ -145,8 +159,8 @@
             cursor: pointer;
         }
 
-        #editorModalClose:hover,
-        #editorModalClose:focus {
+        .modal .close:hover,
+        .modal .close:focus {
             color: #fff;
             text-decoration: none;
         }
@@ -154,15 +168,17 @@
         /* Toolbar Styles */
         #editorToolbar {
             display: flex;
+            flex-wrap: wrap;
             overflow-x: auto;
             width: 100%;
             padding-bottom: 10px;
             margin-bottom: 20px;
+            justify-content: center;
         }
 
         #editorToolbar button {
             padding: 12px 20px;
-            margin-right: 10px;
+            margin: 5px;
             color: #e0e0e0;
             background-color: #333;
             border: none;
@@ -170,12 +186,60 @@
             font-size: 16px;
             cursor: pointer;
             transition: background-color 0.3s, transform 0.2s;
-            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #editorToolbar button i {
+            margin-right: 8px;
         }
 
         #editorToolbar button:hover {
             background-color: #444;
             transform: translateY(-2px);
+        }
+
+        /* Info Button Specific Styles */
+        #info-button {
+            background-color: #8c8c8c; /* Desired background color */
+            color: #fff; /* Desired text color */
+        }
+
+        #info-button:hover {
+            background-color: #666; /* Background color on hover */
+        }
+
+        #info-button:active,
+        #info-button:focus {
+            background-color: #777; /* Background color when active or focused */
+            outline: none; /* Remove default outline */
+        }
+
+        /* Postprocessing Submenu */
+        .postprocessing-controls {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            width: 90%;
+            background-color: #1e1e1e;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .postprocessing-controls label {
+            width: 100%;
+            margin: 8px 0 4px 0;
+            text-align: left;
+            color: #e0e0e0;
+            font-size: 14px;
+        }
+
+        .postprocessing-controls input[type="range"],
+        .postprocessing-controls input[type="checkbox"] {
+            width: 100%;
+            margin-bottom: 10px;
         }
 
         /* Image Container inside Modal */
@@ -185,6 +249,7 @@
             max-width: 100%;
             margin: 0 auto;
             overflow: hidden;
+            display: none;
         }
 
         #uploadedImageModal {
@@ -271,6 +336,11 @@
         #dataTable th {
             background-color: #333;
             color: #e0e0e0;
+            cursor: pointer;
+        }
+
+        #dataTable th.sortable:hover {
+            background-color: #444;
         }
 
         #dataTable tr:hover {
@@ -297,30 +367,25 @@
             width: 100%;
         }
 
-        /* Postprocessing Controls */
-        .postprocessing-controls {
+        /* Loading Spinner */
+        .spinner {
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #555;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 3000; /* Ensure it's above other elements */
             display: none;
-            flex-direction: column;
-            align-items: center;
-            width: 90%;
-            background-color: #1e1e1e;
-            padding: 15px;
-            border-radius: 8px;
-            margin-top: 10px;
         }
 
-        .postprocessing-controls label {
-            width: 100%;
-            margin: 8px 0 4px 0;
-            text-align: left;
-            color: #e0e0e0;
-            font-size: 14px;
-        }
-
-        .postprocessing-controls input[type="range"],
-        .postprocessing-controls input[type="checkbox"] {
-            width: 100%;
-            margin-bottom: 10px;
+        @keyframes spin {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
         }
 
         /* Responsive Adjustments for Mobile */
@@ -350,77 +415,91 @@
                 font-size: 13px;
                 padding: 10px 12px;
             }
-        }
 
-        /* Specific Styles for the Info Button */
-        #info-button {
-            background-color: #8c8c8c; /* Desired background color */
-            color: #fff;            /* Desired text color */
-            /* Optional: Add other styles as needed */
-            /* Example: */
-            /* border: 2px solid #fff; */
-        }
-
-        /* Hover Effect for the Info Button */
-        #info-button:hover {
-            background-color: #666; /* Background color on hover */
-            /* Optional: */
-            /* color: #000; */     /* Text color on hover */
-        }
-
-        /* Active/Focus Effect for Accessibility */
-        #info-button:active,
-        #info-button:focus {
-            background-color: #777; /* Background color when active or focused */
-            outline: none;           /* Remove default outline */
-            /* Optional: */
-            /* border-color: #fff; */
+            .drop-zone {
+                width: 90%;
+            }
         }
 
         /* Info Modal Styles */
-        #infoModal {
-            display: none; /* Hidden by default */
-            position: fixed; /* Stay in place */
-            z-index: 2500; /* Sit on top */
-            left: 0;
-            top: 0;
-            width: 100%; /* Full width */
-            height: 100%; /* Full height */
-            overflow: auto; /* Enable scroll if needed */
-            background-color: rgba(0, 0, 0, 0.5); /* Black w/ opacity */
-        }
-
-        /* Modal Content Box */
         #infoModalContent {
             background-color: #1e1e1e;
-            margin: 10% auto; /* 10% from the top and centered */
+            margin: 5% auto;
             padding: 20px;
             border: 1px solid #888;
-            width: 80%; /* Could be more or less, depending on screen size */
+            width: 80%;
             border-radius: 8px;
             color: #e0e0e0;
             position: relative;
         }
 
-        /* Close Button */
-        #infoModalClose {
-            color: #aaa;
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-            position: absolute;
-            top: 10px;
-            right: 20px;
+        /* Confirmation Dialog Styles */
+        .confirmation-dialog {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.6);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 4000;
+        }
+
+        .confirmation-dialog.show {
+            display: flex;
+        }
+
+        .confirmation-content {
+            background-color: #1e1e1e;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            color: #e0e0e0;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .confirmation-content p {
+            margin-bottom: 20px;
+            font-size: 16px;
+        }
+
+        .confirmation-buttons {
+            display: flex;
+            justify-content: center;
+        }
+
+        .confirmation-buttons button {
+            padding: 10px 20px;
+            margin: 0 10px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
             cursor: pointer;
+            transition: background-color 0.3s;
         }
 
-        #infoModalClose:hover,
-        #infoModalClose:focus {
+        .confirm-btn {
+            background-color: #28a745;
             color: #fff;
-            text-decoration: none;
         }
 
-        /* Invisible Hitboxes for Anchors */
+        .confirm-btn:hover {
+            background-color: #218838;
+        }
+
+        .cancel-btn {
+            background-color: #dc3545;
+            color: #fff;
+        }
+
+        .cancel-btn:hover {
+            background-color: #c82333;
+        }
+
+        /* Hitbox Styles */
         .hitbox {
             position: absolute;
             width: 40px; /* Increased clickable area */
@@ -430,6 +509,7 @@
             background-color: transparent;
             /* Ensure hitboxes are on top */
             z-index: 15;
+            cursor: pointer;
         }
 
         /* Positioning Hitboxes */
@@ -443,48 +523,70 @@
             top: 0;
         }
 
+        /* Reset Filters Button */
+        #resetFiltersBtn {
+            padding: 8px 16px;
+            margin-top: 10px;
+            color: #e0e0e0;
+            background-color: #555;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        #resetFiltersBtn:hover {
+            background-color: #666;
+        }
     </style>
 </head>
 <body>
+    <!-- Loading Spinner -->
+    <div id="loadingSpinner" class="spinner" role="status" aria-label="Loading"></div>
+
     <div class="container">
         <h1>OCR Image Processor</h1>
-        <br>
-        <br>
+
+        <!-- Drag and Drop Zone -->
+        <div id="dropZone" class="drop-zone" tabindex="0" aria-label="Drag and drop image here or click to upload">
+            <p><i class="fas fa-upload"></i> Drag & Drop Image Here or Click to Upload</p>
+            <input type="file" id="imageInput" accept="image/*" aria-hidden="true">
+        </div>
+
         <!-- Main Input Section -->
         <div class="input-section">
-            <label for="imageInput">Upload Image:</label>
-            <input type="file" id="imageInput" accept="image/*">
-            <button id="openEditorBtn">Open Editor</button>
+            <button id="openEditorBtn" aria-label="Open Image Editor"><i class="fas fa-edit"></i> Open Editor</button>
             <p id="statusMessage"></p>
         </div>
 
         <!-- Input Fields -->
         <div id="fieldContainer">
             <label for="field1">Item Name Short:</label>
-            <input type="text" id="field1">
+            <input type="text" id="field1" aria-label="Item Name Short">
             <label for="field2">Item Name Long:</label>
-            <input type="text" id="field2">
+            <input type="text" id="field2" aria-label="Item Name Long">
             <label for="field3">UPC:</label>
-            <input type="text" id="field3">
+            <input type="text" id="field3" aria-label="UPC">
             <label for="field4">Location:</label>
-            <input type="text" id="field4">
+            <input type="text" id="field4" aria-label="Location">
             <label for="field5">Downstack:</label>
-            <input type="text" id="field5">
+            <input type="text" id="field5" aria-label="Downstack">
             <label for="field6">Notes:</label>
-            <input type="text" id="field6">
+            <input type="text" id="field6" aria-label="Notes">
         </div>
     </div>
 
     <!-- Data Table -->
-    <table id="dataTable">
+    <table id="dataTable" aria-label="OCR Data Table">
         <thead>
             <tr>
-                <th>Item Name Short</th>
-                <th>Item Name Long</th>
-                <th>UPC</th>
-                <th>Location</th>
-                <th>Downstack</th>
-                <th>Notes</th>
+                <th class="sortable" data-sort="field1">Item Name Short</th>
+                <th class="sortable" data-sort="field2">Item Name Long</th>
+                <th class="sortable" data-sort="field3">UPC</th>
+                <th class="sortable" data-sort="field4">Location</th>
+                <th class="sortable" data-sort="field5">Downstack</th>
+                <th class="sortable" data-sort="field6">Notes</th>
             </tr>
         </thead>
         <tbody>
@@ -493,43 +595,45 @@
     </table>
 
     <!-- Editor Modal -->
-    <div id="editorModal">
+    <div id="editorModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="editorModalTitle">
         <div id="editorModalContent">
-            <span id="editorModalClose">&times;</span>
+            <span class="close" id="editorModalClose" aria-label="Close Editor">&times;</span>
             <!-- Toolbar -->
             <div id="editorToolbar">
-                <button id="draw-button" class="toolbar-button">Draw</button>
-                <button id="undo-draw-button" class="toolbar-button" style="display:none;">Undo Draw</button>
-                <button id="crop-button" class="toolbar-button">Crop</button>
-                <button id="confirm-crop-button" class="toolbar-button" style="display:none;">Confirm Crop</button>
-                <button id="perform-ocr-button" class="toolbar-button">Perform OCR</button>
-                <button id="clear-image-button" class="toolbar-button">Clear Image & Fields</button>
-                <button id="update-table-button" class="toolbar-button">Update Table</button>
-                <button id="save-csv-button" class="toolbar-button">Save CSV</button>
-                <button id="postprocessing-button" class="toolbar-button">Postprocessing</button>
-                <button id="info-button" class="toolbar-button">Info</button>
+                <button id="draw-button" class="toolbar-button" aria-label="Draw Rectangles"><i class="fas fa-pencil-alt"></i> Draw</button>
+                <button id="undo-draw-button" class="toolbar-button" style="display:none;" aria-label="Undo Last Draw"><i class="fas fa-undo"></i> Undo</button>
+                <button id="crop-button" class="toolbar-button" aria-label="Crop Image"><i class="fas fa-crop"></i> Crop</button>
+                <button id="confirm-crop-button" class="toolbar-button" style="display:none;" aria-label="Confirm Crop"><i class="fas fa-check"></i> Confirm Crop</button>
+                <button id="perform-ocr-button" class="toolbar-button" aria-label="Perform OCR"><i class="fas fa-search"></i> Perform OCR</button>
+                <button id="clear-image-button" class="toolbar-button" aria-label="Clear Image and Fields"><i class="fas fa-trash-alt"></i> Clear Image & Fields</button>
+                <button id="update-table-button" class="toolbar-button" aria-label="Update Data Table"><i class="fas fa-table"></i> Update Table</button>
+                <button id="save-csv-button" class="toolbar-button" aria-label="Save Data as CSV"><i class="fas fa-file-csv"></i> Save CSV</button>
+                <button id="postprocessing-button" class="toolbar-button" aria-label="Postprocessing Controls"><i class="fas fa-sliders-h"></i> Postprocessing</button>
+                <button id="info-button" class="toolbar-button" aria-label="Information"><i class="fas fa-info-circle"></i> Info</button>
             </div>
 
             <!-- Postprocessing Submenu -->
             <div class="postprocessing-controls" id="postprocessing-controls">
                 <label for="grayscale">Grayscale:</label>
-                <input type="checkbox" id="grayscale">
+                <input type="checkbox" id="grayscale" aria-label="Toggle Grayscale">
 
                 <label for="highlight">Highlight:</label>
-                <input type="range" id="highlight" min="0" max="100" value="0">
+                <input type="range" id="highlight" min="0" max="100" value="0" aria-label="Adjust Highlight">
 
                 <label for="clarity">Clarity:</label>
-                <input type="range" id="clarity" min="0" max="100" value="50">
+                <input type="range" id="clarity" min="0" max="100" value="50" aria-label="Adjust Clarity">
 
                 <label for="brightness">Brightness:</label>
-                <input type="range" id="brightness" min="-100" max="100" value="0">
+                <input type="range" id="brightness" min="-100" max="100" value="0" aria-label="Adjust Brightness">
 
                 <label for="sharpening">Sharpening:</label>
-                <input type="range" id="sharpening" min="0" max="100" value="0">
+                <input type="range" id="sharpening" min="0" max="100" value="0" aria-label="Adjust Sharpening">
+
+                <button id="resetFiltersBtn" aria-label="Reset Postprocessing Filters"><i class="fas fa-redo"></i> Reset Filters</button>
             </div>
 
             <!-- Image Container inside Modal -->
-            <div id="editorImageContainer" style="display:none;">
+            <div id="editorImageContainer">
                 <img id="uploadedImageModal" alt="Uploaded Image">
                 <!-- Postprocessing Canvas -->
                 <canvas id="postprocessingCanvasModal"></canvas>
@@ -537,32 +641,60 @@
                 <canvas id="overlayCanvasModal"></canvas>
 
                 <!-- Invisible Hitboxes for Resize and Move -->
-                <div class="hitbox resize"></div> <!-- Bottom-Left for Resize -->
-                <div class="hitbox move"></div>   <!-- Top-Right for Move -->
+                <div class="hitbox resize" aria-hidden="true"></div> <!-- Bottom-Left for Resize -->
+                <div class="hitbox move" aria-hidden="true"></div>   <!-- Top-Right for Move -->
+            </div>
+
+            <!-- Input Fields within Editor -->
+            <div id="fieldContainerEditor">
+                <label for="field1">Item Name Short:</label>
+                <input type="text" id="field1" aria-label="Item Name Short">
+                <label for="field2">Item Name Long:</label>
+                <input type="text" id="field2" aria-label="Item Name Long">
+                <label for="field3">UPC:</label>
+                <input type="text" id="field3" aria-label="UPC">
+                <label for="field4">Location:</label>
+                <input type="text" id="field4" aria-label="Location">
+                <label for="field5">Downstack:</label>
+                <input type="text" id="field5" aria-label="Downstack">
+                <label for="field6">Notes:</label>
+                <input type="text" id="field6" aria-label="Notes">
             </div>
         </div>
     </div>
 
     <!-- Info Modal Structure -->
-    <div id="infoModal">
+    <div id="infoModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="infoModalTitle">
         <div id="infoModalContent">
-            <span id="infoModalClose">&times;</span>
-            <h2>Information</h2>
+            <span class="close" id="infoModalClose" aria-label="Close Information">&times;</span>
+            <h2 id="infoModalTitle">Information</h2>
             <ul>
-               <li> Upload an image and perform OCR.</li> 
-               <li> Use the toolbar to select specific areas for OCR or to crop the image. </li>
-               <li> After drawing a crop rectangle, click "Confirm Crop" to apply the crop. </li>
-               <li> Recognized words within drawn rectangles will be highlighted in light blue on the image. </li>
-               <li> Tap on a highlighted block to assign the concatenated text to one of the input fields. </li>
-               <li> Once done, press "Update Table" to add a row to the table. </li>
-               <li> Process multiple images by clearing the image and fields. </li>
-               <li> Finally, press "Save CSV" to download all collected data. </li>
+                <li>Upload an image by dragging and dropping it into the designated area or by clicking to select a file.</li>
+                <li>Once uploaded, click "Open Editor" to start editing the image.</li>
+                <li>Use the toolbar to select specific areas for OCR or to crop the image.</li>
+                <li>After drawing a crop rectangle, click "Confirm Crop" to apply the crop.</li>
+                <li>Recognized text within drawn rectangles will be highlighted in blue on the image.</li>
+                <li>Click on a highlighted rectangle to assign the extracted text to one of the input fields.</li>
+                <li>Once done, press "Update Table" to add a row to the table.</li>
+                <li>Press "Save CSV" to download all collected data in CSV format.</li>
             </ul>
+        </div>
+    </div>
+
+    <!-- Confirmation Dialog -->
+    <div id="confirmationDialog" class="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="confirmationTitle">
+        <div class="confirmation-content">
+            <p id="confirmationMessage">Are you sure you want to perform this action?</p>
+            <div class="confirmation-buttons">
+                <button class="confirm-btn" id="confirmYes">Yes</button>
+                <button class="cancel-btn" id="confirmNo">No</button>
+            </div>
         </div>
     </div>
 
     <script>
         // DOM Elements
+        const dropZone = document.getElementById('dropZone');
         const imageInput = document.getElementById('imageInput');
         const openEditorBtn = document.getElementById('openEditorBtn');
         const statusMessage = document.getElementById('statusMessage');
@@ -592,6 +724,7 @@
         const claritySlider = document.getElementById('clarity');
         const brightnessSlider = document.getElementById('brightness');
         const sharpeningSlider = document.getElementById('sharpening');
+        const resetFiltersBtn = document.getElementById('resetFiltersBtn');
 
         // Editor Image Elements
         const uploadedImageModal = document.getElementById('uploadedImageModal');
@@ -606,6 +739,15 @@
         // Info Modal Elements
         const infoModal = document.getElementById('infoModal');
         const infoModalClose = document.getElementById('infoModalClose');
+
+        // Confirmation Dialog Elements
+        const confirmationDialog = document.getElementById('confirmationDialog');
+        const confirmationMessage = document.getElementById('confirmationMessage');
+        const confirmYes = document.getElementById('confirmYes');
+        const confirmNo = document.getElementById('confirmNo');
+
+        // Spinner Element
+        const loadingSpinner = document.getElementById('loadingSpinner');
 
         // Input Fields
         const field1 = document.getElementById('field1');
@@ -635,6 +777,39 @@
         let resizeTarget = null;
         let handlesVisible = true;
         let initialRect = null; // Store the initial rectangle during resize
+        const ocrCache = new Map(); // Cache for OCR results
+
+        // Initialize Tesseract Worker
+        const ocrWorker = Tesseract.createWorker({
+            logger: m => console.log(m)
+        });
+
+        async function initializeWorker() {
+            await ocrWorker.load();
+            await ocrWorker.loadLanguage('eng');
+            await ocrWorker.initialize('eng');
+        }
+
+        initializeWorker();
+
+        // Debounce Function
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
+
+        // Show Spinner
+        function showSpinner() {
+            loadingSpinner.style.display = 'block';
+        }
+
+        // Hide Spinner
+        function hideSpinner() {
+            loadingSpinner.style.display = 'none';
+        }
 
         // Open Editor Modal
         function openEditorModal() {
@@ -642,7 +817,7 @@
                 alert('Please upload an image first.');
                 return;
             }
-            editorModal.style.display = 'block';
+            editorModal.classList.add('show');
             editorImageContainer.style.display = 'block';
             uploadedImageModal.src = imageDataURL;
             uploadedImageModal.onload = () => {
@@ -650,68 +825,65 @@
                 applyPostprocessingModal();
                 redrawCanvasModal();
             };
+            document.body.style.overflow = 'hidden'; // Prevent background scrolling
         }
 
         // Close Editor Modal
         function closeEditorModal() {
-            editorModal.style.display = 'none';
+            editorModal.classList.remove('show');
             userRectangles = [];
             rectangleTexts = {};
             cropRect = null;
             isDrawingMode = false;
             isCroppingMode = false;
-            drawButton.textContent = 'Draw';
-            cropButton.textContent = 'Crop';
+            drawButton.innerHTML = '<i class="fas fa-pencil-alt"></i> Draw';
+            cropButton.innerHTML = '<i class="fas fa-crop"></i> Crop';
             confirmCropButton.style.display = 'none';
             handlesVisible = true;
             undoDrawButton.style.display = 'none';
             clearCanvasModal();
             statusMessage.textContent = 'Editor closed.';
+            document.body.style.overflow = 'auto'; // Restore scrolling
         }
 
         // Event Listener for Open Editor Button
         openEditorBtn.addEventListener('click', openEditorModal);
 
         // Event Listener for Close Editor Modal
-        editorModalClose.addEventListener('click', closeEditorModal);
+        editorModalClose.addEventListener('click', () => {
+            confirmationMessage.textContent = 'Are you sure you want to close the editor? Unsaved changes will be lost.';
+            openConfirmationDialog(() => {
+                closeEditorModal();
+            });
+        });
 
         // Event Listener to Open Editor Modal when Clicking Outside Content
         editorModal.addEventListener('click', (e) => {
             if (e.target === editorModal) {
-                closeEditorModal();
+                confirmationMessage.textContent = 'Are you sure you want to close the editor? Unsaved changes will be lost.';
+                openConfirmationDialog(() => {
+                    closeEditorModal();
+                });
             }
-        });
-
-        // Event Listener for Image Upload
-        imageInput.addEventListener('change', () => {
-            const file = imageInput.files[0];
-            if (!file) {
-                resetImageDisplay();
-                return;
-            }
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                imageDataURL = e.target.result;
-                statusMessage.textContent = 'Image loaded. Click "Open Editor" to start editing.';
-                openEditorBtn.style.display = 'block';
-            };
-            reader.readAsDataURL(file);
         });
 
         // Event Listener for Info Button
         infoButton.addEventListener('click', () => {
-            infoModal.style.display = 'block';
+            infoModal.classList.add('show');
+            document.body.style.overflow = 'hidden'; // Prevent background scrolling
         });
 
         // Event Listener for Close Info Modal
         infoModalClose.addEventListener('click', () => {
-            infoModal.style.display = 'none';
+            infoModal.classList.remove('show');
+            document.body.style.overflow = 'auto'; // Restore scrolling
         });
 
         // Close Info Modal when Clicking Outside Content
-        window.addEventListener('click', (event) => {
+        infoModal.addEventListener('click', (event) => {
             if (event.target == infoModal) {
-                infoModal.style.display = 'none';
+                infoModal.classList.remove('show');
+                document.body.style.overflow = 'auto'; // Restore scrolling
             }
         });
 
@@ -771,20 +943,20 @@
             }
             if (isCroppingMode) {
                 isCroppingMode = false;
-                cropButton.textContent = 'Crop';
+                cropButton.innerHTML = '<i class="fas fa-crop"></i> Crop';
                 confirmCropButton.style.display = 'none';
             }
             isDrawingMode = !isDrawingMode;
             if (isDrawingMode) {
-                drawButton.textContent = 'Cancel Draw';
-                statusMessage.textContent = 'Draw mode activated. Tap and drag on the image to draw rectangles for OCR.';
+                drawButton.innerHTML = '<i class="fas fa-times"></i> Cancel Draw';
+                statusMessage.textContent = 'Draw mode activated. Click and drag on the image to draw rectangles for OCR.';
                 cropRect = null;
                 confirmCropButton.style.display = 'none';
                 handlesVisible = true;
                 undoDrawButton.style.display = userRectangles.length > 0 ? 'block' : 'none';
                 redrawCanvasModal();
             } else {
-                drawButton.textContent = 'Draw';
+                drawButton.innerHTML = '<i class="fas fa-pencil-alt"></i> Draw';
                 statusMessage.textContent = 'Draw mode deactivated.';
                 currentRect = null;
                 redrawCanvasModal();
@@ -799,18 +971,18 @@
             }
             if (isDrawingMode) {
                 isDrawingMode = false;
-                drawButton.textContent = 'Draw';
+                drawButton.innerHTML = '<i class="fas fa-pencil-alt"></i> Draw';
             }
             isCroppingMode = !isCroppingMode;
             if (isCroppingMode) {
-                cropButton.textContent = 'Cancel Crop';
-                statusMessage.textContent = 'Crop mode activated. Tap and drag on the image to select the crop area.';
+                cropButton.innerHTML = '<i class="fas fa-times"></i> Cancel Crop';
+                statusMessage.textContent = 'Crop mode activated. Click and drag on the image to select the crop area.';
                 cropRect = null;
                 confirmCropButton.style.display = 'none';
                 handlesVisible = true;
                 redrawCanvasModal();
             } else {
-                cropButton.textContent = 'Crop';
+                cropButton.innerHTML = '<i class="fas fa-crop"></i> Crop';
                 statusMessage.textContent = 'Crop mode deactivated.';
                 currentRect = null;
                 confirmCropButton.style.display = 'none';
@@ -826,7 +998,7 @@
             }
             performCrop(cropRect);
             isCroppingMode = false;
-            cropButton.textContent = 'Crop';
+            cropButton.innerHTML = '<i class="fas fa-crop"></i> Crop';
             confirmCropButton.style.display = 'none';
             statusMessage.textContent = 'Image cropped successfully.';
             handlesVisible = false;
@@ -1074,7 +1246,7 @@
         // Perform OCR Button
         performOcrButton.addEventListener('click', async () => {
             if (!imageDataURL) {
-                alert('Please select an image first.');
+                alert('Please upload an image first.');
                 return;
             }
             if (userRectangles.length === 0) {
@@ -1084,30 +1256,43 @@
 
             if (isDrawingMode) {
                 drawButton.click();
-                statusMessage.textContent = 'Drawing mode exited. Performing OCR... please wait.';
+                statusMessage.textContent = 'Draw mode exited. Performing OCR... please wait.';
             } else {
                 statusMessage.textContent = 'Performing OCR... please wait.';
             }
 
-            clearCanvasModal();
-            statusMessage.textContent = 'Performing OCR on selected areas...';
-            rectangleTexts = {}; // Reset previous texts
+            showSpinner();
+            try {
+                clearCanvasModal();
+                statusMessage.textContent = 'Performing OCR on selected areas...';
+                rectangleTexts = {}; // Reset previous texts
 
-            for (let i = 0; i < userRectangles.length; i++) {
-                const rect = userRectangles[i];
-                const text = await performOCROnRectangle(rect);
-                rectangleTexts[i] = text; // Map text to rectangle index
+                for (let i = 0; i < userRectangles.length; i++) {
+                    const rect = userRectangles[i];
+                    const text = await performOCROnRectangle(rect);
+                    rectangleTexts[i] = text; // Map text to rectangle index
+                }
+
+                // Hide resize handles after OCR
+                handlesVisible = false;
+
+                statusMessage.textContent = 'OCR complete. Click on highlighted areas to assign fields.';
+                redrawCanvasModal(); // Redraw rectangles in blue
+            } catch (error) {
+                console.error(error);
+                alert('An error occurred during OCR processing.');
+            } finally {
+                hideSpinner();
             }
-
-            // Hide resize handles after OCR
-            handlesVisible = false;
-
-            statusMessage.textContent = 'OCR complete. Tap on highlighted areas to assign fields.';
-            redrawCanvasModal(); // Redraw rectangles in blue
         });
 
         // Function to Perform OCR on a Specific Rectangle
         async function performOCROnRectangle(rect) {
+            const cacheKey = JSON.stringify(rect);
+            if (ocrCache.has(cacheKey)) {
+                return ocrCache.get(cacheKey);
+            }
+
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
 
@@ -1128,16 +1313,11 @@
             const croppedDataURL = canvas.toDataURL();
 
             // Perform OCR using Tesseract.js on the cropped image
-            const worker = await Tesseract.createWorker({
-                logger: m => console.log(m)
-            });
-            await worker.load();
-            await worker.loadLanguage('eng');
-            await worker.initialize('eng');
-            const { data } = await worker.recognize(croppedDataURL);
-            await worker.terminate();
+            const { data } = await ocrWorker.recognize(croppedDataURL);
 
-            return data.text.trim();
+            const extractedText = data.text.trim();
+            ocrCache.set(cacheKey, extractedText);
+            return extractedText;
         }
 
         // Handle Clicks on Highlighted Areas (Blue Rectangles) in Modal
@@ -1169,27 +1349,36 @@
 
         // Clear Image Button
         clearImageButton.addEventListener('click', () => {
-            resetImageDisplay();
-            resetFields();
-            statusMessage.textContent = 'Cleared image and fields. You can upload a new image.';
-            editorModal.style.display = 'none';
-            openEditorBtn.style.display = 'none';
+            confirmationMessage.textContent = 'Are you sure you want to clear the image and all input fields? This action cannot be undone.';
+            openConfirmationDialog(() => {
+                resetImageDisplay();
+                resetFields();
+                statusMessage.textContent = 'Cleared image and fields. You can upload a new image.';
+                editorModal.classList.remove('show');
+                openEditorBtn.style.display = 'none';
+            });
         });
 
         // Update Table Button
         updateTableButton.addEventListener('click', () => {
-            const row = document.createElement('tr');
-            const cols = [field1.value.trim(), field2.value.trim(), field3.value.trim(), field4.value.trim(), field5.value.trim(), field6.value.trim()];
-            if (cols.every(c => c === '')) {
+            const rowData = [field1.value.trim(), field2.value.trim(), field3.value.trim(), field4.value.trim(), field5.value.trim(), field6.value.trim()];
+            if (rowData.every(c => c === '')) {
                 alert('All fields are empty. Nothing to add.');
                 return;
             }
-            cols.forEach(c => {
+
+            const row = document.createElement('tr');
+            rowData.forEach(cellData => {
                 const td = document.createElement('td');
-                td.textContent = c;
+                td.textContent = cellData;
                 row.appendChild(td);
             });
-            dataTable.appendChild(row);
+
+            // Use Document Fragment
+            const fragment = document.createDocumentFragment();
+            fragment.appendChild(row);
+            dataTable.appendChild(fragment);
+
             alert('Row added to the table.');
             resetFields();
         });
@@ -1228,6 +1417,11 @@
             uploadedImageModal.src = '';
             editorImageContainer.style.display = 'none';
             clearCanvasModal();
+            userRectangles = [];
+            rectangleTexts = {};
+            cropRect = null;
+            handlesVisible = true;
+            undoDrawButton.style.display = 'none';
         }
 
         // Function to Reset Input Fields
@@ -1527,7 +1721,11 @@
 
         /* -------------------- Postprocessing Functions -------------------- */
 
-        // Function to Apply Postprocessing Effects (Modal)
+        // Debounced Function for Postprocessing
+        const debouncedApplyPostprocessing = debounce(() => {
+            applyPostprocessingModal();
+        }, 300);
+
         function applyPostprocessingModal() {
             if (!uploadedImageModal.src) return;
 
@@ -1622,12 +1820,10 @@
             const src = data;
             const sw = width;
             const sh = height;
-            const w = sw;
-            const h = sh;
             const output = new Uint8ClampedArray(src.length);
 
-            for (let y = 0; y < h; y++) {
-                for (let x = 0; x < w; x++) {
+            for (let y = 0; y < sh; y++) {
+                for (let x = 0; x < sw; x++) {
                     let r = 0, g = 0, b = 0;
                     for (let ky = 0; ky < side; ky++) {
                         for (let kx = 0; kx < side; kx++) {
@@ -1641,7 +1837,7 @@
                             }
                         }
                     }
-                    const dstOffset = (y * w + x) * 4;
+                    const dstOffset = (y * sw + x) * 4;
                     output[dstOffset] = Math.min(Math.max(r * intensity, 0), 255);
                     output[dstOffset + 1] = Math.min(Math.max(g * intensity, 0), 255);
                     output[dstOffset + 2] = Math.min(Math.max(b * intensity, 0), 255);
@@ -1657,45 +1853,26 @@
         }
 
         // Event Listeners for Postprocessing Controls
-        grayscaleCheckbox.addEventListener('change', () => {
-            applyPostprocessingModal();
-        });
-        highlightSlider.addEventListener('input', () => {
-            applyPostprocessingModal();
-        });
-        claritySlider.addEventListener('input', () => {
-            applyPostprocessingModal();
-        });
-        brightnessSlider.addEventListener('input', () => {
-            applyPostprocessingModal();
-        });
-        sharpeningSlider.addEventListener('input', () => {
+        grayscaleCheckbox.addEventListener('change', debouncedApplyPostprocessing);
+        highlightSlider.addEventListener('input', debouncedApplyPostprocessing);
+        claritySlider.addEventListener('input', debouncedApplyPostprocessing);
+        brightnessSlider.addEventListener('input', debouncedApplyPostprocessing);
+        sharpeningSlider.addEventListener('input', debouncedApplyPostprocessing);
+
+        // Reset Filters Button
+        resetFiltersBtn.addEventListener('click', () => {
+            grayscaleCheckbox.checked = false;
+            highlightSlider.value = 0;
+            claritySlider.value = 50;
+            brightnessSlider.value = 0;
+            sharpeningSlider.value = 0;
             applyPostprocessingModal();
         });
 
         /* -------------------- OCR and Drawing Logic Continued -------------------- */
 
         // Handle Clicks on Highlighted Areas (Blue Rectangles) in Modal
-        overlayCanvasModal.addEventListener('click', (e) => {
-            if (userRectangles.length === 0) return;
-            const rect = overlayCanvasModal.getBoundingClientRect();
-            const x = (e.clientX - rect.left);
-            const y = (e.clientY - rect.top);
-
-            // Iterate through all user rectangles to find if click is inside any
-            for (let i = 0; i < userRectangles.length; i++) {
-                const r = userRectangles[i];
-                if (x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height) {
-                    const text = rectangleTexts[i] || '';
-                    if (text === '') {
-                        alert('No text extracted for this area.');
-                        return;
-                    }
-                    assignTextToField(text);
-                    break;
-                }
-            }
-        });
+        // Already implemented above
 
         /* -------------------- Additional Utility Functions -------------------- */
 
@@ -1710,12 +1887,11 @@
         /* -------------------- Hitbox Event Listeners -------------------- */
 
         // Resize Hitbox Events
-        resizeHitbox.addEventListener('touchstart', (e) => {
+        resizeHitbox.addEventListener('mousedown', (e) => {
             e.preventDefault();
             const rect = overlayCanvasModal.getBoundingClientRect();
-            const touch = e.touches[0];
-            const x = (touch.clientX - rect.left);
-            const y = (touch.clientY - rect.top);
+            const x = (e.clientX - rect.left);
+            const y = (e.clientY - rect.top);
             const handleInfo = getHandleAtModal(x, y);
             if (handleInfo && handleInfo.type === 'resize') {
                 isResizing = true;
@@ -1727,15 +1903,14 @@
                     initialRect = { ...userRectangles[resizeTarget] };
                 }
             }
-        }, { passive: false });
+        });
 
         // Move Hitbox Events
-        moveHitbox.addEventListener('touchstart', (e) => {
+        moveHitbox.addEventListener('mousedown', (e) => {
             e.preventDefault();
             const rect = overlayCanvasModal.getBoundingClientRect();
-            const touch = e.touches[0];
-            const x = (touch.clientX - rect.left);
-            const y = (touch.clientY - rect.top);
+            const x = (e.clientX - rect.left);
+            const y = (e.clientY - rect.top);
             const handleInfo = getHandleAtModal(x, y);
             if (handleInfo && handleInfo.type === 'move') {
                 isMoving = true;
@@ -1749,7 +1924,174 @@
                     moveOffset.y = y - rectToMove.y;
                 }
             }
-        }, { passive: false });
+        });
+
+        /* -------------------- Drag and Drop Functionality -------------------- */
+
+        // Handle Drag Over
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        // Handle Drag Leave
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        // Handle Drop
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                imageInput.files = files;
+                imageInput.dispatchEvent(new Event('change'));
+            }
+        });
+
+        // Handle Click on Drop Zone to Trigger File Input
+        dropZone.addEventListener('click', () => {
+            imageInput.click();
+        });
+
+        // Handle Keypress (Enter or Space) on Drop Zone to Trigger File Input
+        dropZone.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                imageInput.click();
+            }
+        });
+
+        // Event Listener for Image Upload
+        imageInput.addEventListener('change', () => {
+            const file = imageInput.files[0];
+            if (!file) {
+                resetImageDisplay();
+                openEditorBtn.style.display = 'none';
+                statusMessage.textContent = 'No image selected.';
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                imageDataURL = e.target.result;
+                statusMessage.textContent = 'Image loaded. Click "Open Editor" to start editing.';
+                openEditorBtn.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        });
+
+        /* -------------------- Confirmation Dialog Functions -------------------- */
+
+        function openConfirmationDialog(onConfirm) {
+            confirmationDialog.classList.add('show');
+            document.body.style.overflow = 'hidden'; // Prevent background scrolling
+
+            confirmYes.onclick = () => {
+                confirmationDialog.classList.remove('show');
+                document.body.style.overflow = 'auto'; // Restore scrolling
+                onConfirm();
+            };
+
+            confirmNo.onclick = () => {
+                confirmationDialog.classList.remove('show');
+                document.body.style.overflow = 'auto'; // Restore scrolling
+            };
+        }
+
+        // Close Confirmation Dialog on Outside Click
+        confirmationDialog.addEventListener('click', (e) => {
+            if (e.target === confirmationDialog) {
+                confirmationDialog.classList.remove('show');
+                document.body.style.overflow = 'auto'; // Restore scrolling
+            }
+        });
+
+        /* -------------------- Sorting Functionality for Data Table -------------------- */
+
+        const sortableHeaders = document.querySelectorAll('#dataTable th.sortable');
+        sortableHeaders.forEach(header => {
+            header.addEventListener('click', () => {
+                const sortKey = header.getAttribute('data-sort');
+                const ascending = header.getAttribute('data-ascending') === 'true';
+                sortTable(sortKey, !ascending);
+                header.setAttribute('data-ascending', !ascending);
+            });
+        });
+
+        function sortTable(key, ascending) {
+            const rows = Array.from(dataTable.querySelectorAll('tr'));
+            rows.sort((a, b) => {
+                const aText = a.querySelector(`td:nth-child(${getColumnIndex(key)})`).textContent.toLowerCase();
+                const bText = b.querySelector(`td:nth-child(${getColumnIndex(key)})`).textContent.toLowerCase();
+                if (aText < bText) return ascending ? -1 : 1;
+                if (aText > bText) return ascending ? 1 : -1;
+                return 0;
+            });
+            // Remove existing rows
+            dataTable.innerHTML = '';
+            // Append sorted rows
+            const fragment = document.createDocumentFragment();
+            rows.forEach(row => fragment.appendChild(row));
+            dataTable.appendChild(fragment);
+        }
+
+        function getColumnIndex(key) {
+            switch (key) {
+                case 'field1': return 1;
+                case 'field2': return 2;
+                case 'field3': return 3;
+                case 'field4': return 4;
+                case 'field5': return 5;
+                case 'field6': return 6;
+                default: return 1;
+            }
+        }
+
+        /* -------------------- Canvas Interaction Functions -------------------- */
+
+        // Function to Assign Text to Fields
+        // Already implemented above
+
+        /* -------------------- Hitbox Event Listeners Continued -------------------- */
+
+        /* -------------------- End of Additional Utility Functions -------------------- */
+
+        /* -------------------- Additional Error Handling -------------------- */
+
+        // Handle Image Load Errors
+        uploadedImageModal.addEventListener('error', () => {
+            alert('Failed to load the image. Please try another file.');
+            resetImageDisplay();
+            openEditorBtn.style.display = 'none';
+            statusMessage.textContent = 'Failed to load image.';
+        });
+
+        /* -------------------- End of Additional Error Handling -------------------- */
+
+        /* -------------------- Additional Enhancements -------------------- */
+
+        // Implement Keyboard Navigation for Modals
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                if (editorModal.classList.contains('show')) {
+                    confirmationMessage.textContent = 'Are you sure you want to close the editor? Unsaved changes will be lost.';
+                    openConfirmationDialog(() => {
+                        closeEditorModal();
+                    });
+                }
+                if (infoModal.classList.contains('show')) {
+                    infoModal.classList.remove('show');
+                    document.body.style.overflow = 'auto'; // Restore scrolling
+                }
+                if (confirmationDialog.classList.contains('show')) {
+                    confirmationDialog.classList.remove('show');
+                    document.body.style.overflow = 'auto'; // Restore scrolling
+                }
+            }
+        });
+
+        /* -------------------- End of Additional Enhancements -------------------- */
 
     </script>
 </body>
